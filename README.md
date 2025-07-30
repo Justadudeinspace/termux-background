@@ -1,7 +1,9 @@
 ![Termux Background Banner](docs/banner.png)
 
+---
+
 <p align="center">
-  <img src="https://raw.githubusercontent.com/YOUR_USERNAME/termux-background/main/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="100" alt="Termux Background Icon">
+  <img src="https://raw.githubusercontent.com/Justadudeinspace/termux-background/main/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="100" alt="Termux Background Icon">
 </p>
 
 <h1 align="center">Termux Background Plugin</h1>
