@@ -1,0 +1,11 @@
+# Android build artifacts
+/build/
+/dist/
+/.idea/
+/.gradle/
+/*.iml
+/local.properties
+/captures
+output.json
+*.apk
+*.deb
