@@ -4,6 +4,8 @@ import android.Manifest; import android.app.Activity; import android.content.Int
 
 import androidx.annotation.Nullable; import androidx.appcompat.app.AppCompatActivity; import androidx.core.app.ActivityCompat;
 
+import com.termuxbackground.WebAppInterface;
+
 import java.io.File; import java.io.InputStream; import java.io.OutputStream; import java.io.FileOutputStream;
 
 public class MainActivity extends AppCompatActivity {
