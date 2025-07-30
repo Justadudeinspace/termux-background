@@ -1,3 +1,5 @@
+# 📦 Termux Background v1.0.0 Release Notes
+
 # 📦 Termux-Background v1.0.0 Release Draft
 
 ### 🚀 Features

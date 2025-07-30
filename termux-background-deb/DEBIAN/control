@@ -1,0 +1,7 @@
+Package: termux-background
+Version: 1.0.0
+Section: termux
+Priority: optional
+Architecture: all
+Maintainer: Termux Background Team
+Description: Termux plugin for setting background image, opacity, blur, and scale.

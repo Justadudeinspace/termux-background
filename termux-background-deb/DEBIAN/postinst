@@ -1,0 +1,5 @@
+#!/data/data/com.termux/files/usr/bin/bash
+mkdir -p ~/.termux
+cp -f /data/data/com.termux/files/home/.termux/background.png ~/.termux/
+cp -f /data/data/com.termux/files/home/.termux/termux.properties ~/.termux/
+termux-reload-settings
