@@ -6,15 +6,6 @@
    Termux Background
   </title>
   <script src="https://cdn.tailwindcss.com">
-  
-    function runInstaller() {
-      if (typeof Android !== 'undefined' && Android.runInstallerScript) {
-        Android.runInstallerScript();
-      } else {
-        alert("This function requires the Termux environment.");
-      }
-    }
-
   </script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&amp;display=swap" rel="stylesheet"/>
@@ -57,11 +48,23 @@
      Set as Termux Background
     </button>
    
-    <button onclick="runInstaller()" class="w-full bg-blue-600 hover:bg-blue-700 transition-colors rounded-md py-3 font-semibold text-white">
-      Install in Termux
-    </button>
+<div class="w-full space-y-4">
+  <label class="block text-sm text-gray-400">Opacity</label>
+  <input type="range" id="opacitySlider" min="0" max="100" value="100" class="w-full">
 
-  </section>
+  <label class="block text-sm text-gray-400">Scale Mode</label>
+  <select id="scaleMode" class="w-full bg-black border border-gray-600 rounded p-2">
+    <option value="fill">Fill</option>
+    <option value="fit">Fit</option>
+    <option value="tile">Tile</option>
+  </select>
+
+  <label class="inline-flex items-center mt-2">
+    <input type="checkbox" id="enableBlur" class="form-checkbox h-4 w-4 text-green-500">
+    <span class="ml-2 text-gray-300">Enable Blur Animation</span>
+  </label>
+</div>
+</section>
   </main>
   <footer class="bg-black border-t border-gray-700 p-4 text-center text-gray-500 text-sm">
    © 2024 Termux Background Plugin
@@ -98,20 +101,28 @@
     }
 
     setBackgroundBtn.addEventListener('click', () => {
+  if (!imageInput.files.length) return;
+
+  const file = imageInput.files[0];
+  const reader = new FileReader();
+
+  reader.onload = function (e) {
+    const base64 = e.target.result;
+
+    const opacity = document.getElementById('opacitySlider').value;
+    const scaleMode = document.getElementById('scaleMode').value;
+    const blur = document.getElementById('enableBlur').checked;
+
+    Android.applyImage(base64, opacity, scaleMode, blur);
+  };
+
+  reader.readAsDataURL(file);
+});
       if (!imageInput.files.length) return;
 
       const file = imageInput.files[0];
       alert(`Background image "${file.name}" selected and ready to be applied in Termux.`);
     });
-  
-    function runInstaller() {
-      if (typeof Android !== 'undefined' && Android.runInstallerScript) {
-        Android.runInstallerScript();
-      } else {
-        alert("This function requires the Termux environment.");
-      }
-    }
-
   </script>
  </body>
 </html>
