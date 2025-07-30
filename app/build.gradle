@@ -2,14 +2,13 @@ plugins {
     id 'com.android.application'
 }
 
-def keystorePropertiesFile = rootProject.file("keystore.properties")
+import java.util.Properties
 def keystoreProperties = new Properties()
-keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+keystoreProperties.load(new FileInputStream(rootProject.file("keystore.properties")))
 
 android {
     namespace 'com.termuxbackground'
     compileSdkVersion 34
-
     defaultConfig {
         applicationId 'com.termuxbackground'
         minSdkVersion 24
@@ -17,7 +16,6 @@ android {
         versionCode 1
         versionName "1.0"
     }
-
     signingConfigs {
         release {
             storeFile file(keystoreProperties['storeFile'])
@@ -26,7 +24,6 @@ android {
             keyPassword keystoreProperties['keyPassword']
         }
     }
-
     buildTypes {
         release {
             signingConfig signingConfigs.release
@@ -39,15 +36,15 @@ android {
     }
 }
 
-dependencies {
-    configurations.all {
-        resolutionStrategy {
-            force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
-            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
-            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
-        }
+configurations.all {
+    resolutionStrategy {
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
     }
+}
 
+dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.core:core-ktx:1.12.0'
 }
