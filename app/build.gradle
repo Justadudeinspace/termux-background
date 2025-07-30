@@ -1,5 +1,6 @@
-apply from: "../keystore.properties"
 plugins {
+
+apply from: "../keystore.properties"
     id 'com.android.application'
 }
 
