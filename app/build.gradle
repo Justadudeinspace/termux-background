@@ -1,8 +1,45 @@
+apply from: "../keystore.properties"
 plugins {
     id 'com.android.application'
 }
 
 android {
+    signingConfigs {
+
+        release {
+
+            if (project.hasProperty("storeFile")) {
+
+                storeFile file(storeFile)
+
+                storePassword storePassword
+
+                keyAlias keyAlias
+
+                keyPassword keyPassword
+
+            }
+
+        }
+
+    }
+
+
+    buildTypes {
+
+        release {
+
+            signingConfig signingConfigs.release
+
+        }
+
+        debug {
+
+            signingConfig signingConfigs.release
+
+        }
+
+    }
     namespace 'com.termuxbackground'
     compileSdkVersion 34
 
