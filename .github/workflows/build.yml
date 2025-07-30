@@ -25,7 +25,7 @@ jobs:
 
       - name: Build APK
         run: |
-          ./gradlew clean assembleRelease
+          ./gradlew clean :app:assembleRelease
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
