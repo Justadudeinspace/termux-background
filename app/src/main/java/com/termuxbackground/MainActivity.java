@@ -1,6 +1,7 @@
 // MainActivity.java package com.termuxbackground;
 
 import android.Manifest; import android.app.Activity; import android.content.Intent; import android.net.Uri; import android.os.Bundle; import android.webkit.WebChromeClient; import android.webkit.WebSettings; import android.webkit.WebView; import android.webkit.WebViewClient; import android.webkit.ValueCallback; import android.webkit.WebView; import android.webkit.WebChromeClient; import android.webkit.WebSettings; import android.widget.Toast;
+import com.termuxbackground.R;
 
 import androidx.annotation.Nullable; import androidx.appcompat.app.AppCompatActivity; import androidx.core.app.ActivityCompat;
 
@@ -16,8 +17,6 @@ private final static int FILE_CHOOSER_REQUEST_CODE = 1001;
 
 @Override
 protected void onCreate(Bundle savedInstanceState) {
-        setContentView(R.layout.activity_main);
-        WebView webView = findViewById(R.id.webview);
         webView.getSettings().setJavaScriptEnabled(true);
         webView.addJavascriptInterface(new WebAppInterface(this), "Android");
         webView.loadUrl("file:///android_asset/termux-background-ui.html");
