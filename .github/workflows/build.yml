@@ -1,7 +1,3 @@
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
 name: Build & Release Termux Background
 
 on:
@@ -15,76 +11,94 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     steps:
-      - name: Checkout Repo
+      - name: 🧾 Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Set up Java
+      - name: ☕ Set up Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '21'
 
-      - name: Set up Android SDK
+      - name: 📦 Set up Android SDK
         uses: android-actions/setup-android@v2
 
-      - name: Make gradlew executable
+      - name: 🔧 Make gradlew Executable
         run: chmod +x ./gradlew
 
-      - name: Build Debug APK
+      - name: 🏗 Build Debug APK
         run: ./gradlew assembleDebug
 
-      - name: Build Release APK
+      - name: 🚀 Build Release APK
         run: ./gradlew assembleRelease
 
-      - name: Build .deb Package
+      - name: 🔢 Get Next Version (starting from 1.0.0)
+        id: versioning
+        run: |
+          latest=$(git tag --sort=-v:refname | grep -E '^version-[0-9]+\.[0-9]+\.[0-9]+$' | tail -n1)
+          if [ -z "$latest" ]; then
+            version="1.0.0"
+          else
+            IFS='.' read -r major minor patch <<<"$(echo $latest | sed 's/version-//')"
+            version="$major.$minor.$((patch+1))"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "📌 Building version: $version"
+
+      - name: 🧱 Create debfix Directory
         run: |
           mkdir -p debfix/DEBIAN
-          echo "Package: termux-background" > debfix/DEBIAN/control
-          echo "Version: 1.0.0" >> debfix/DEBIAN/control
-          echo "Architecture: all" >> debfix/DEBIAN/control
-          echo "Maintainer: Justadudeinspace" >> debfix/DEBIAN/control
-          echo "Description: Termux plugin for custom background image." >> debfix/DEBIAN/control
-
           mkdir -p debfix/data/data/com.termux/files/usr/bin
 
-      - name: Get Latest Tag
-        id: get_tag
+      - name: 📝 Write DEB control file
         run: |
-          latest=$(git tag --sort=-v:refname | grep -E '^v1\.' | tail -n1)
-          if [ -z "$latest" ]; then latest="v1.0.0"; fi
-          IFS='.' read -r v major minor patch <<<"${latest//v/}"
-          tag="v1.$minor.$((patch+1))"
-          echo "tag=$tag" >> $GITHUB_OUTPUT
+          echo "Package: termux-background" > debfix/DEBIAN/control
+          echo "Version: ${{ steps.versioning.outputs.version }}" >> debfix/DEBIAN/control
+          echo "Architecture: all" >> debfix/DEBIAN/control
+          echo "Maintainer: Justadudeinspace" >> debfix/DEBIAN/control
+          echo "Description: Termux plugin for background image" >> debfix/DEBIAN/control
 
-      - name: Create Git Tag
+      - name: ⚙️ Write install shell script to DEB
         run: |
+          script_path=debfix/data/data/com.termux/files/usr/bin/termux-background
+          echo '#!/data/data/com.termux/files/usr/bin/bash' > $script_path
+          echo 'mkdir -p ~/.termux' >> $script_path
+          echo 'cp -f ~/termux-background/background.png ~/.termux/background.png' >> $script_path
+          echo 'grep -q "background=" ~/.termux/termux.properties || {' >> $script_path
+          echo '  echo "background=background.png" >> ~/.termux/termux.properties' >> $script_path
+          echo '  echo "background.opacity=0.8" >> ~/.termux/termux.properties' >> $script_path
+          echo '  echo "background.animation=scroll" >> ~/.termux/termux.properties' >> $script_path
+          echo '}' >> $script_path
+          echo 'termux-reload-settings' >> $script_path
+          chmod +x $script_path
+
+      - name: 📦 Build .deb Package
+        run: |
+          dpkg-deb -b debfix termux-background_${{ steps.versioning.outputs.version }}_all.deb
+
+      - name: 🏷️ Tag This Version
+        run: |
+          version=${{ steps.versioning.outputs.version }}
+          tag="version-$version"
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git tag ${{ steps.get_tag.outputs.tag }}
-          git push origin ${{ steps.get_tag.outputs.tag }}
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "🔁 Tag $tag already exists. Skipping tag creation."
+          else
+            git tag "$tag"
+            git push origin "$tag"
+          fi
 
-      - name: Create GitHub Release and Upload
+      - name: 🚀 Publish GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.get_tag.outputs.tag }}
+          tag_name: version-${{ steps.versioning.outputs.version }}
           files: |
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/release/app-release.apk
-            termux-background_1.0.0_all.deb
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          cat << 'EOL' > debfix/data/data/com.termux/files/usr/bin/termux-background
-#!/data/data/com.termux/files/usr/bin/bash
-mkdir -p ~/.termux
-cp -f ~/termux-background/background.png ~/.termux/background.png
-grep -q "background=" ~/.termux/termux.properties || {
-  echo "background=background.png" >> ~/.termux/termux.properties
-  echo "background.opacity=0.8" >> ~/.termux/termux.properties
-  echo "background.animation=scroll" >> ~/.termux/termux.properties
-}
-termux-reload-settings
-EOL
-
-          chmod +x debfix/data/data/com.termux/files/usr/bin/termux-background
-          dpkg-deb -b debfix termux-background_1.0.0_all.deb
+            termux-background_${{ steps.versioning.outputs.version }}_all.deb
