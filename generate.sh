@@ -1,28 +1,61 @@
-#!/bin/bash
-# Build Termux-Background.apk offline
+#!/data/data/com.termux/files/usr/bin/bash
+# Rebuild script for Termux-Background Plugin
+# Author: Briley.ai - 2025
 
 set -e
 
-cd "$(dirname "$0")"
+echo "[✓] Cleaning old builds..."
+rm -rf app/build termux-background.zip
 
-echo "[+] Cleaning previous builds..."
-rm -rf build dist
-mkdir -p build/classes dist/apk
+echo "[✓] Validating ~/.termux/termux.properties and reload hook..."
+mkdir -p ~/.termux
+PROP_FILE=~/.termux/termux.properties
 
-echo "[+] Compiling Java sources..."
-find app/src/main/java -name "*.java" > sources.txt
-javac -d build/classes @sources.txt
+# Ensure basic background line exists
+grep -qxF "background=background.png" "$PROP_FILE" 2>/dev/null || {
+  echo "background=background.png" >> "$PROP_FILE"
+  echo "[+] Set: background=background.png"
+}
 
-echo "[+] Converting to DEX..."
-dx --dex --output=build/classes.dex build/classes
+# Add animation settings if not present
+add_prop_if_missing() {
+  KEY="$1"
+  VAL="$2"
+  if ! grep -q "^${KEY}=" "$PROP_FILE" 2>/dev/null; then
+    echo "${KEY}=${VAL}" >> "$PROP_FILE"
+    echo "[+] Set: ${KEY}=${VAL}"
+  else
+    echo "[✓] ${KEY} already set"
+  fi
+}
 
-echo "[+] Packaging APK..."
-aapt package -f -M app/src/main/AndroidManifest.xml -S app/src/main/res -A app/src/main/assets -I $ANDROID_HOME/platforms/android-33/android.jar -F dist/app.unsigned.apk build
+echo "[✓] Injecting Termux background animation defaults..."
+add_prop_if_missing "background.opacity"       "0.8"
+add_prop_if_missing "background.scale"         "fit"
+add_prop_if_missing "background.blur"          "false"
+add_prop_if_missing "background.animation"     "scroll"
+add_prop_if_missing "background.animation.speed" "1.0"
 
-echo "[+] Adding DEX..."
-aapt add dist/app.unsigned.apk build/classes.dex
+termux-reload-settings
 
-echo "[+] Signing APK..."
-apksigner sign --ks my-release-key.jks --ks-pass pass:password --key-pass pass:password --key-alias alias_name --out dist/termux-background.apk dist/app.unsigned.apk
+echo "[✓] Making gradlew executable..."
+chmod +x ./gradlew
 
-echo "[✓] Done. APK is at dist/termux-background.apk"
+echo "[✓] Building APK locally with Gradle..."
+./gradlew assembleDebug
+
+APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+if [ -f "$APK_PATH" ]; then
+  echo "[✓] Build successful: $APK_PATH"
+else
+  echo "[✗] APK build failed."
+  exit 1
+fi
+
+echo "[✓] Zipping repo including hidden files..."
+cd ..
+zip -r termux-background.zip termux-background -x "*/build/*" -x "*.DS_Store"
+
+echo "[✓] Done. Output files:"
+echo "   - APK: $APK_PATH"
+echo "   - ZIP: termux-background.zip"

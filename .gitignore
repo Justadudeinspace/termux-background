@@ -1,11 +1,24 @@
-# Android build artifacts
+# Ignore Gradle build outputs
 /build/
-/dist/
-/.idea/
-/.gradle/
-/*.iml
-/local.properties
-/captures
-output.json
+/app/build/
 *.apk
-*.deb
+
+# IDE / editor junk
+.idea/
+*.iml
+*.swp
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Termux / local system config (exclude only if not needed)
+.termux/*
+!/.termux/termux.properties
+
+# Log and temp
+*.log
+*.tmp
+
+# Gradle wrapper cache
+.gradle/
