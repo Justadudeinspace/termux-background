@@ -1,109 +1,50 @@
-![Termux Background Banner](docs/banner.png)
+# Termux Background
 
----
+A Termux plugin that allows you to set a custom background image behind the terminal interface — with support for opacity, blur, and scroll animation.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Justadudeinspace/termux-background/main/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="100" alt="Termux Background Icon">
-</p>
+## 🎨 Features
 
-<h1 align="center">Termux Background Plugin</h1>
+- 📷 Image preview
+- 🔍 JPEG/PNG file selector
+- 🎚️ Opacity slider (10%–100%)
+- 🌫️ Blur effect toggle
+- 🌀 Background scroll animation
+- 🛠 Automatically updates `~/.termux/termux.properties`
+- 🚀 Triggers `termux-reload-settings` instantly
 
-<p align="center">
-  A standalone Android plugin that lets you <strong>set custom background images</strong> in Termux — just like Windows Terminal.<br/>
-  Fully offline. Web UI. No root needed.
-</p>
+## 📦 Installation
 
----
-
-## 🚀 Features
-
-- 📷 Web-based UI for selecting background images (JPEG/PNG)
-- 🧠 Auto-copies image to `~/.termux/background.png`
-- ⚙️ Auto-generates `~/.termux/termux.properties`
-- 🔁 Calls `termux-reload-settings` via Termux:API
-- 🔧 Fully offline build & install support
-- 🧩 `.deb` plugin installer + CLI command: `termux-background`
-- ✅ Supports Android 7–14+, scoped storage safe
-
----
-
-## 📷 Screenshots
-
-| UI | Preview |
-|----|---------|
-| ![UI](docs/screenshot-ui.png) | ![Preview](docs/screenshot-preview.png) |
-
----
-
-## 📦 Installation (Plugin APK or CLI)
-
-### Requirements
-- ✔️ Termux (v0.119+)
-- ✔️ Termux:API
-
-### Option A: Install Plugin APK
+### Option 1: Install via .deb (recommended for CLI users)
 
 ```bash
-adb install termux-background.apk
-```
+wget https://github.com/Justadudeinspace/termux-background/releases/download/v1.0.1/termux-background_1.0.1_all.deb
+dpkg -i termux-background_1.0.1_all.deb
 
-### Option B: Install CLI `.deb` Plugin
+Then run:
 
-```bash
-pkg install ./termux-background_1.0.0_all.deb
 termux-background
-```
 
----
+Option 2: Install APK
 
-## 💡 How It Works
+adb install app-release.apk
 
-- Moves selected image to: `~/.termux/background.png`
-- Creates: `~/.termux/termux.properties`
-- Calls: `termux-reload-settings`
-- Persists until Termux is uninstalled
+Open the app from your launcher and apply your background.
 
----
+🧪 Testing
 
-## 📁 Project Tree
+termux-reload-settings
+cat ~/.termux/termux.properties
 
-```
-termux-background/
-├── app/src/main/java/com/termuxbackground/
-│   ├── MainActivity.java
-│   └── WebAppInterface.java
-├── app/src/main/assets/
-│   ├── termux-background-ui.html
-│   └── install.sh
-├── app/src/main/res/mipmap-*/ic_launcher.png
-├── deb/termux-background_1.0.0_all.deb
-├── dist/termux-background.apk
-├── generate.sh
-├── .gitignore
-├── README.md
-└── LICENSE
-```
+📁 Files and Paths
 
----
+FileLocation
 
-## 🧠 Build Offline
+Background Image~/.termux/background.png
+Properties Config~/.termux/termux.properties
+CLI Entrytermux-background
 
-```bash
-bash generate.sh
-```
 
----
+🙏 License
 
-## 🛠 Developer Notes
-
-- HTML5 Tailwind UI
-- WebView bridge to native Java
-- Persistent background image support via `.termux/`
-- Compatible with Qualcomm, MediaTek, Unisoc
-
----
-
-## 📜 License
-
-MIT License. See [LICENSE](LICENSE).
+MIT License — © 2025 Justadudeinspace EOF
 

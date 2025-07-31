@@ -59,6 +59,8 @@
   <footer class="bg-black border-t border-gray-700 p-4 text-center text-gray-500 text-sm">
     © 2024 Termux Background Plugin
   </footer>
+</body>
+</html>
   <script>
     const imageInput = document.getElementById('imageInput');
     const previewImage = document.getElementById('previewImage');
@@ -101,13 +103,21 @@
 
     setBackgroundBtn.addEventListener('click', () => {
       if (!imageInput.files.length) return;
+
       const file = imageInput.files[0];
-      Android.setSettings(
-        toggleAnimation.checked ? "scroll" : "none",
-        toggleBlur.checked ? "true" : "false",
-        opacitySlider.value
-      );
-      alert(`Background image "${file.name}" selected and ready to be applied in Termux.`);
+
+      if (typeof Android !== "undefined") {
+        Android.setSettings(
+          toggleAnimation.checked ? "scroll" : "none",
+          toggleBlur.checked ? "true" : "false",
+          opacitySlider.value
+        );
+        alert(`✅ Background image "${file.name}" applied.`);
+      } else {
+        alert("⚠️ Android interface not found.");
+      }
+
+      setBackgroundBtn.disabled = true;
     });
   </script>
 </body>
