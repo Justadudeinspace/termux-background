@@ -47,18 +47,6 @@ jobs:
           echo "Description: Termux plugin for custom background image." >> debfix/DEBIAN/control
 
           mkdir -p debfix/data/data/com.termux/files/usr/bin
-          echo '#!/data/data/com.termux/files/usr/bin/bash
-mkdir -p ~/.termux
-cp -f ~/termux-background/background.png ~/.termux/background.png
-grep -q "background=" ~/.termux/termux.properties || {
-  echo "background=background.png" >> ~/.termux/termux.properties
-  echo "background.opacity=0.8" >> ~/.termux/termux.properties
-  echo "background.animation=scroll" >> ~/.termux/termux.properties
-}
-termux-reload-settings' > debfix/data/data/com.termux/files/usr/bin/termux-background
-
-          chmod +x debfix/data/data/com.termux/files/usr/bin/termux-background
-          dpkg-deb -b debfix termux-background_1.0.0_all.deb
 
       - name: Get Latest Tag
         id: get_tag
@@ -86,3 +74,17 @@ termux-reload-settings' > debfix/data/data/com.termux/files/usr/bin/termux-backg
             termux-background_1.0.0_all.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          cat << 'EOL' > debfix/data/data/com.termux/files/usr/bin/termux-background
+#!/data/data/com.termux/files/usr/bin/bash
+mkdir -p ~/.termux
+cp -f ~/termux-background/background.png ~/.termux/background.png
+grep -q "background=" ~/.termux/termux.properties || {
+  echo "background=background.png" >> ~/.termux/termux.properties
+  echo "background.opacity=0.8" >> ~/.termux/termux.properties
+  echo "background.animation=scroll" >> ~/.termux/termux.properties
+}
+termux-reload-settings
+EOL
+
+          chmod +x debfix/data/data/com.termux/files/usr/bin/termux-background
+          dpkg-deb -b debfix termux-background_1.0.0_all.deb
