@@ -1,130 +1,123 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta content="width=device-width, initial-scale=1" name="viewport" />
+  <meta charset="UTF-8">
   <title>Termux Background</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Optional external styles -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap" rel="stylesheet" />
+
   <style>
-    body { font-family: 'Roboto Mono', monospace; }
-    @keyframes scroll {
-      0% { background-position: 0% 0%; }
-      100% { background-position: 100% 0%; }
+    body {
+      background-color: #111;
+      color: #eee;
+      padding: 20px;
+      font-family: sans-serif;
+    }
+    .preview {
+      margin-top: 1rem;
+      width: 100%;
+      max-width: 320px;
+      height: 180px;
+      background-color: #222;
+      background-size: cover;
+      background-position: center;
+      border: 2px solid #444;
+      border-radius: 12px;
     }
     .animate-scroll {
-      animation: scroll 10s linear infinite;
-      background-size: cover;
+      animation: scroll-bg 10s linear infinite;
+    }
+    @keyframes scroll-bg {
+      0% { background-position: center top; }
+      100% { background-position: center bottom; }
     }
   </style>
 </head>
-<body class="bg-black text-gray-100 min-h-screen flex flex-col">
-  <header class="bg-black border-b border-gray-700 shadow-md p-4 flex items-center justify-between">
-    <h1 class="text-xl font-semibold flex items-center space-x-2">
-      <i class="fas fa-image text-green-400"></i><span>Termux Background</span>
-    </h1>
-  </header>
-  <main class="flex-grow container mx-auto px-4 py-6 flex flex-col items-center">
-    <section class="w-full max-w-md bg-black border border-gray-700 rounded-lg shadow-lg p-6 flex flex-col items-center space-y-6">
-      <h2 class="text-2xl font-semibold text-green-400">Select Background Image</h2>
-      <p class="text-gray-300 text-center">Choose a JPEG or PNG image from your device to set as the Termux terminal background.</p>
-      <label class="cursor-pointer bg-green-500 hover:bg-green-600 transition-colors rounded-md px-6 py-3 text-white font-semibold flex items-center space-x-2" for="imageInput">
-        <i class="fas fa-folder-open"></i><span>Open File Manager</span>
-      </label>
-      <input accept="image/png, image/jpeg" class="hidden" id="imageInput" type="file" onchange="previewImage(event)" />
-      <div class="w-full h-48 rounded-md border-2 border-dashed border-gray-700 overflow-hidden" id="previewContainer">
-        <div id="previewImage" class="w-full h-full bg-center bg-no-repeat bg-contain bg-black animate-none transition-all duration-500"
-             style="background-image: url('https://placehold.co/400x192/000000/808080/png?text=No+Image+Selected');"></div>
-      </div>
-      <div class="w-full flex flex-col space-y-4 text-left">
-        <label class="flex items-center space-x-2">
-          <input type="checkbox" id="toggleAnimation" class="form-checkbox h-5 w-5 text-green-500">
-          <span class="text-gray-300">Enable Scroll Animation</span>
-        </label>
-        <label class="flex items-center space-x-2">
-          <input type="range" id="opacitySlider" min="0.1" max="1.0" step="0.1" value="0.8" class="w-full">
-          <span class="text-gray-300">Opacity</span>
-        </label>
-        <label class="flex items-center space-x-2">
-          <input type="checkbox" id="toggleBlur" class="form-checkbox h-5 w-5 text-green-500">
-          <span class="text-gray-300">Enable Blur Effect</span>
-        </label>
-      </div>
-      <button id="setBackgroundBtn" class="w-full bg-green-600 disabled:bg-green-900 disabled:cursor-not-allowed rounded-md py-3 font-semibold text-white transition-colors" disabled>
-        Set as Termux Background
-      </button>
-    </section>
-  </main>
-  <footer class="bg-black border-t border-gray-700 p-4 text-center text-gray-500 text-sm">
-    © 2024 Termux Background Plugin
-  </footer>
-</body>
-</html>
-</body>
-</html>
-</body>
-</html>
-</body>
-</html>
-<script>
-const imageInput = document.getElementById('imageInput');
-const previewImage = document.getElementById('previewImage');
-const setBackgroundBtn = document.getElementById('setBackgroundBtn');
-const toggleAnimation = document.getElementById('toggleAnimation');
-const opacitySlider = document.getElementById('opacitySlider');
-const toggleBlur = document.getElementById('toggleBlur');
 
-function previewImageFunc(event) {
-  const file = event.target.files[0];
-  if (!file) {
-    previewImage.src = 'https://placehold.co/400x192/000000/808080/png?text=No+Image+Selected';
-    setBackgroundBtn.disabled = true;
-    return;
-  }
-  if (!file.type.startsWith('image/')) {
-    alert('Please select a valid image file.');
-    imageInput.value = '';
-    setBackgroundBtn.disabled = true;
-    return;
-  }
+<body>
+  <h1 class="text-xl font-bold mb-4">
+    <i class="fas fa-image"></i> Termux Background Picker
+  </h1>
 
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    previewImage.src = e.target.result;
-    setBackgroundBtn.disabled = false;
-  };
-  reader.readAsDataURL(file);
-}
+  <label class="block mb-2">Choose Image:</label>
+  <input id="imageInput" type="file" accept="image/*" class="mb-4 bg-gray-900 text-white border rounded px-3 py-2">
 
-imageInput.addEventListener('change', previewImageFunc);
-opacitySlider.addEventListener('input', () => {
-  previewImage.style.opacity = opacitySlider.value;
-});
-toggleBlur.addEventListener('change', () => {
-  previewImage.style.filter = toggleBlur.checked ? 'blur(4px)' : 'none';
-});
-toggleAnimation.addEventListener('change', () => {
-  previewImage.classList.toggle('animate-scroll', toggleAnimation.checked);
-});
+  <div id="previewImage" class="preview"></div>
 
-setBackgroundBtn.addEventListener('click', () => {
-  if (!imageInput.files.length) return;
-  const file = imageInput.files[0];
-  setBackgroundBtn.disabled = true;
+  <label class="block mt-4">Opacity: <span id="opacityValue">0.8</span></label>
+  <input type="range" id="opacitySlider" min="0.1" max="1" step="0.01" value="0.8" class="w-full">
 
-  if (typeof Android !== "undefined" && Android.setSettings) {
-    Android.setSettings(
-      toggleAnimation.checked ? "scroll" : "none",
-      toggleBlur.checked ? "true" : "false",
-      opacitySlider.value
-    );
-    alert(`✅ "${file.name}" set as Termux background.`);
-  } else {
-    alert("⚠️ Android interface not available.");
-  }
-});
-</script>
+  <div class="flex items-center mt-4 gap-4">
+    <label><input type="checkbox" id="toggleAnimation"> Animate</label>
+    <label><input type="checkbox" id="toggleBlur"> Blur</label>
+  </div>
+
+  <button id="setBackgroundBtn" disabled class="mt-6 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">
+    <i class="fas fa-check-circle"></i> Set Background
+  </button>
+
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const previewImage = document.getElementById('previewImage');
+    const setBackgroundBtn = document.getElementById('setBackgroundBtn');
+    const toggleAnimation = document.getElementById('toggleAnimation');
+    const opacitySlider = document.getElementById('opacitySlider');
+    const toggleBlur = document.getElementById('toggleBlur');
+    const opacityValue = document.getElementById('opacityValue');
+
+    imageInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file || !file.type.startsWith('image/')) {
+        alert('Please select a valid image.');
+        imageInput.value = '';
+        setBackgroundBtn.disabled = true;
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewImage.style.backgroundImage = `url('${e.target.result}')`;
+        setBackgroundBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    opacitySlider.addEventListener('input', () => {
+      const val = opacitySlider.value;
+      opacityValue.textContent = val;
+      previewImage.style.opacity = val;
+    });
+
+    toggleBlur.addEventListener('change', () => {
+      previewImage.style.filter = toggleBlur.checked ? 'blur(4px)' : 'none';
+    });
+
+    toggleAnimation.addEventListener('change', () => {
+      previewImage.classList.toggle('animate-scroll', toggleAnimation.checked);
+    });
+
+    setBackgroundBtn.addEventListener('click', () => {
+      const file = imageInput.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (typeof Android !== "undefined" && Android.setSettings) {
+          Android.setSettings(
+            toggleAnimation.checked ? "scroll" : "none",
+            toggleBlur.checked ? "true" : "false",
+            opacitySlider.value
+          );
+          alert(`✅ "${file.name}" sent to Termux background service.`);
+        } else {
+          alert("⚠️ Android.setSettings() interface not available.");
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  </script>
 </body>
 </html>
