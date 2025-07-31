@@ -66,64 +66,65 @@
 </html>
 </body>
 </html>
-  <script>
-    const imageInput = document.getElementById('imageInput');
-    const previewImage = document.getElementById('previewImage');
-    const setBackgroundBtn = document.getElementById('setBackgroundBtn');
-    const toggleAnimation = document.getElementById('toggleAnimation');
-    const opacitySlider = document.getElementById('opacitySlider');
-    const toggleBlur = document.getElementById('toggleBlur');
+</body>
+</html>
+<script>
+const imageInput = document.getElementById('imageInput');
+const previewImage = document.getElementById('previewImage');
+const setBackgroundBtn = document.getElementById('setBackgroundBtn');
+const toggleAnimation = document.getElementById('toggleAnimation');
+const opacitySlider = document.getElementById('opacitySlider');
+const toggleBlur = document.getElementById('toggleBlur');
 
-    function previewImageFunc(event) {
-      const file = event.target.files[0];
-      if (!file) {
-        previewImage.style.backgroundImage = "url('https://placehold.co/400x192/000000/808080/png?text=No+Image+Selected')";
-        setBackgroundBtn.disabled = true;
-        return;
-      }
-      if (!file.type.startsWith('image/')) {
-        alert('Please select a valid image file (JPEG or PNG).');
-        imageInput.value = '';
-        setBackgroundBtn.disabled = true;
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        previewImage.style.backgroundImage = `url('${e.target.result}')`;
-        setBackgroundBtn.disabled = false;
-      };
-      reader.readAsDataURL(file);
-    }
+function previewImageFunc(event) {
+  const file = event.target.files[0];
+  if (!file) {
+    previewImage.src = 'https://placehold.co/400x192/000000/808080/png?text=No+Image+Selected';
+    setBackgroundBtn.disabled = true;
+    return;
+  }
+  if (!file.type.startsWith('image/')) {
+    alert('Please select a valid image file.');
+    imageInput.value = '';
+    setBackgroundBtn.disabled = true;
+    return;
+  }
 
-    imageInput.addEventListener('change', previewImageFunc);
-    toggleAnimation.addEventListener('change', () => {
-      previewImage.classList.toggle('animate-scroll', toggleAnimation.checked);
-    });
-    opacitySlider.addEventListener('input', () => {
-      previewImage.style.opacity = opacitySlider.value;
-    });
-    toggleBlur.addEventListener('change', () => {
-      previewImage.style.filter = toggleBlur.checked ? 'blur(4px)' : 'none';
-    });
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    previewImage.src = e.target.result;
+    setBackgroundBtn.disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
 
-    setBackgroundBtn.addEventListener('click', () => {
-      if (!imageInput.files.length) return;
+imageInput.addEventListener('change', previewImageFunc);
+opacitySlider.addEventListener('input', () => {
+  previewImage.style.opacity = opacitySlider.value;
+});
+toggleBlur.addEventListener('change', () => {
+  previewImage.style.filter = toggleBlur.checked ? 'blur(4px)' : 'none';
+});
+toggleAnimation.addEventListener('change', () => {
+  previewImage.classList.toggle('animate-scroll', toggleAnimation.checked);
+});
 
-      const file = imageInput.files[0];
+setBackgroundBtn.addEventListener('click', () => {
+  if (!imageInput.files.length) return;
+  const file = imageInput.files[0];
+  setBackgroundBtn.disabled = true;
 
-      if (typeof Android !== "undefined" && Android.setSettings) {
-        Android.setSettings(
-          toggleAnimation.checked ? "scroll" : "none",
-          toggleBlur.checked ? "true" : "false",
-          opacitySlider.value
-        );
-        alert(`✅ "${file.name}" applied to Termux.`);
-      } else {
-        alert("⚠️ Android interface not available.");
-      }
-
-      setBackgroundBtn.disabled = true;
-    });
-  </script>
+  if (typeof Android !== "undefined" && Android.setSettings) {
+    Android.setSettings(
+      toggleAnimation.checked ? "scroll" : "none",
+      toggleBlur.checked ? "true" : "false",
+      opacitySlider.value
+    );
+    alert(`✅ "${file.name}" set as Termux background.`);
+  } else {
+    alert("⚠️ Android interface not available.");
+  }
+});
+</script>
 </body>
 </html>
