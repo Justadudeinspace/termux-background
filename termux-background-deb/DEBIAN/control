@@ -1,7 +1,5 @@
 Package: termux-background
-Version: 1.0.0
-Section: termux
-Priority: optional
+Version: 1.0.1
 Architecture: all
-Maintainer: Termux Background Team
-Description: Termux plugin for setting background image, opacity, blur, and scale.
+Maintainer: Justadudeinspace
+Description: Termux plugin to set terminal background images with opacity and animation.

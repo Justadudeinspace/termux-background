@@ -117,3 +117,29 @@ MIT License © 2025 Justadudeinspace
 
 ---
 
+
+---
+
+## 🤝 Credits & Contributors
+
+This project was developed with support from:
+
+- [ChatGPT](https://openai.com/chatgpt) – for AI pair programming, logic refactoring, and automation scripting
+- [Blackbox.ai](https://www.blackbox.ai) – for rapid code prototyping and interface scaffolding
+
+---
+
+## 📲 Required Termux Components
+
+For this plugin to work, you must have the following installed:
+
+- [Termux App (F-Droid)](https://f-droid.org/en/packages/com.termux/)  
+  > ⚠️ **Do not install from Google Play Store** — it is outdated and unsupported
+
+- [Termux:API](https://f-droid.org/en/packages/com.termux.api/)  
+  > Used to run `am broadcast` and access runtime hooks
+
+Install both with:
+
+```bash
+pkg install termux-api
