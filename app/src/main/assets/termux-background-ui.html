@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Termux Background</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"/>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap" rel="stylesheet" />
@@ -63,64 +64,66 @@
 </html>
 </body>
 </html>
-<script>
-const imageInput = document.getElementById('imageInput');
-const previewImage = document.getElementById('previewImage');
-const setBackgroundBtn = document.getElementById('setBackgroundBtn');
-const toggleAnimation = document.getElementById('toggleAnimation');
-const opacitySlider = document.getElementById('opacitySlider');
-const toggleBlur = document.getElementById('toggleBlur');
+</body>
+</html>
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const previewImage = document.getElementById('previewImage');
+    const setBackgroundBtn = document.getElementById('setBackgroundBtn');
+    const toggleAnimation = document.getElementById('toggleAnimation');
+    const opacitySlider = document.getElementById('opacitySlider');
+    const toggleBlur = document.getElementById('toggleBlur');
 
-function previewImageFunc(event) {
-  const file = event.target.files[0];
-  if (!file) {
-    previewImage.style.backgroundImage = "url('https://placehold.co/400x192/000000/808080/png?text=No+Image+Selected')";
-    setBackgroundBtn.disabled = true;
-    return;
-  }
-  if (!file.type.startsWith('image/')) {
-    alert('Please select a valid image file (JPEG or PNG).');
-    imageInput.value = '';
-    setBackgroundBtn.disabled = true;
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    previewImage.style.backgroundImage = `url('${e.target.result}')`;
-    setBackgroundBtn.disabled = false;
-  };
-  reader.readAsDataURL(file);
-}
+    function previewImageFunc(event) {
+      const file = event.target.files[0];
+      if (!file) {
+        previewImage.style.backgroundImage = "url('https://placehold.co/400x192/000000/808080/png?text=No+Image+Selected')";
+        setBackgroundBtn.disabled = true;
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        alert('Please select a valid image file (JPEG or PNG).');
+        imageInput.value = '';
+        setBackgroundBtn.disabled = true;
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        previewImage.style.backgroundImage = `url('${e.target.result}')`;
+        setBackgroundBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    }
 
-imageInput.addEventListener('change', previewImageFunc);
-toggleAnimation.addEventListener('change', () => {
-  previewImage.classList.toggle('animate-scroll', toggleAnimation.checked);
-});
-opacitySlider.addEventListener('input', () => {
-  previewImage.style.opacity = opacitySlider.value;
-});
-toggleBlur.addEventListener('change', () => {
-  previewImage.style.filter = toggleBlur.checked ? 'blur(4px)' : 'none';
-});
+    imageInput.addEventListener('change', previewImageFunc);
+    toggleAnimation.addEventListener('change', () => {
+      previewImage.classList.toggle('animate-scroll', toggleAnimation.checked);
+    });
+    opacitySlider.addEventListener('input', () => {
+      previewImage.style.opacity = opacitySlider.value;
+    });
+    toggleBlur.addEventListener('change', () => {
+      previewImage.style.filter = toggleBlur.checked ? 'blur(4px)' : 'none';
+    });
 
-setBackgroundBtn.addEventListener('click', () => {
-  if (!imageInput.files.length) return;
+    setBackgroundBtn.addEventListener('click', () => {
+      if (!imageInput.files.length) return;
 
-  const file = imageInput.files[0];
+      const file = imageInput.files[0];
 
-  if (typeof Android !== "undefined") {
-    Android.setSettings(
-      toggleAnimation.checked ? "scroll" : "none",
-      toggleBlur.checked ? "true" : "false",
-      opacitySlider.value
-    );
-    alert(`✅ Background image "${file.name}" applied.`);
-  } else {
-    alert("⚠️ Android interface not found.");
-  }
+      if (typeof Android !== "undefined" && Android.setSettings) {
+        Android.setSettings(
+          toggleAnimation.checked ? "scroll" : "none",
+          toggleBlur.checked ? "true" : "false",
+          opacitySlider.value
+        );
+        alert(`✅ "${file.name}" applied to Termux.`);
+      } else {
+        alert("⚠️ Android interface not available.");
+      }
 
-  setBackgroundBtn.disabled = true;
-});
-</script>
+      setBackgroundBtn.disabled = true;
+    });
+  </script>
 </body>
 </html>
