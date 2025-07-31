@@ -1,10 +1,3 @@
-import android.webkit.ConsoleMessage;
-import android.webkit.WebChromeClient;
-import android.util.Log;
-import com.termuxbackground.BackgroundInterface;
-import com.termuxbackground.BackgroundInterface;
-import com.termuxbackground.BackgroundInterface;
-import com.termuxbackground.BackgroundInterface;
 package com.termuxbackground;
 
 import android.Manifest;
@@ -17,6 +10,8 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.ValueCallback;
+import android.webkit.ConsoleMessage;
+import android.util.Log;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
@@ -24,45 +19,45 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 public class MainActivity extends AppCompatActivity {
+
     private WebView webView;
+    private static final int REQUEST_SELECT_FILE = 100;
     private ValueCallback<Uri[]> filePathCallback;
-    private static final int FILE_CHOOSER_REQUEST_CODE = 1001;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        webView = findViewById(R.id.webview);
+        webView = new WebView(this);
+        setContentView(webView);
+
+        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
-        webView.addJavascriptInterface(new BackgroundInterface(this), "Android");
-        webView.addJavascriptInterface(new BackgroundInterface(this), "Android");
-        webView.addJavascriptInterface(new BackgroundInterface(this), "Android");
         settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
 
+        webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient() {
-            public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> callback, FileChooserParams params) {
-                filePathCallback = callback;
-                Intent intent = params.createIntent();
-                startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE);
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage message) {
+                Log.d("WebView", message.message() + " -- From line " + message.lineNumber() + " of " + message.sourceId());
                 return true;
             }
         });
 
-        webView.addJavascriptInterface(new WebAppInterface(this), "Android");
+        webView.addJavascriptInterface(new BackgroundInterface(this), "Android");
         webView.loadUrl("file:///android_asset/termux-background-ui.html");
-
-        ActivityCompat.requestPermissions(this, new String[]{
-                Manifest.permission.READ_EXTERNAL_STORAGE
-        }, 1);
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == FILE_CHOOSER_REQUEST_CODE && filePathCallback != null) {
-            Uri[] results = (resultCode == Activity.RESULT_OK && data != null) ?
-                    new Uri[]{data.getData()} : null;
+        if (requestCode == REQUEST_SELECT_FILE && filePathCallback != null) {
+            Uri[] results = null;
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                results = new Uri[]{data.getData()};
+            }
             filePathCallback.onReceiveValue(results);
             filePathCallback = null;
         }
