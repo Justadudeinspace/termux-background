@@ -35,3 +35,6 @@ jobs:
         with:
           name: Termux-Background-APK
           path: app/build/outputs/apk/**/*.apk
+
+      - name: Rename APK to app-debug.apk
+        run: mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-debug.apk
