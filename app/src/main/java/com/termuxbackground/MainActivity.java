@@ -1,3 +1,10 @@
+import android.webkit.ConsoleMessage;
+import android.webkit.WebChromeClient;
+import android.util.Log;
+import com.termuxbackground.BackgroundInterface;
+import com.termuxbackground.BackgroundInterface;
+import com.termuxbackground.BackgroundInterface;
+import com.termuxbackground.BackgroundInterface;
 package com.termuxbackground;
 
 import android.Manifest;
@@ -28,6 +35,9 @@ public class MainActivity extends AppCompatActivity {
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
+        webView.addJavascriptInterface(new BackgroundInterface(this), "Android");
+        webView.addJavascriptInterface(new BackgroundInterface(this), "Android");
+        webView.addJavascriptInterface(new BackgroundInterface(this), "Android");
         settings.setAllowFileAccess(true);
 
         webView.setWebChromeClient(new WebChromeClient() {

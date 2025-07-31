@@ -1,20 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Termux Background</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <!-- Optional external styles -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <script src="https://cdn.tailwindcss.com"></script>
-
   <style>
     body {
-      background-color: #111;
+      background-color: #0d0d0d;
       color: #eee;
-      padding: 20px;
-      font-family: sans-serif;
+      padding: 1.5rem;
+      font-family: 'Segoe UI', sans-serif;
     }
     .preview {
       margin-top: 1rem;
@@ -26,6 +23,7 @@
       background-position: center;
       border: 2px solid #444;
       border-radius: 12px;
+      transition: opacity 0.3s ease, filter 0.3s ease;
     }
     .animate-scroll {
       animation: scroll-bg 10s linear infinite;
@@ -39,25 +37,35 @@
 
 <body>
   <h1 class="text-xl font-bold mb-4">
-    <i class="fas fa-image"></i> Termux Background Picker
+    <i class="fas fa-image text-blue-400"></i> Termux Background Picker
   </h1>
 
-  <label class="block mb-2">Choose Image:</label>
-  <input id="imageInput" type="file" accept="image/*" class="mb-4 bg-gray-900 text-white border rounded px-3 py-2">
+  <label class="block mb-2">Select Background Image:</label>
+  <input id="imageInput" type="file" accept="image/*" class="mb-4 bg-gray-800 text-white border border-gray-600 rounded px-3 py-2 w-full">
 
   <div id="previewImage" class="preview"></div>
 
-  <label class="block mt-4">Opacity: <span id="opacityValue">0.8</span></label>
-  <input type="range" id="opacitySlider" min="0.1" max="1" step="0.01" value="0.8" class="w-full">
-
-  <div class="flex items-center mt-4 gap-4">
-    <label><input type="checkbox" id="toggleAnimation"> Animate</label>
-    <label><input type="checkbox" id="toggleBlur"> Blur</label>
+  <div class="mt-4">
+    <label class="block">Opacity: <span id="opacityValue">0.8</span></label>
+    <input type="range" id="opacitySlider" min="0.1" max="1" step="0.01" value="0.8" class="w-full">
   </div>
 
-  <button id="setBackgroundBtn" disabled class="mt-6 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">
-    <i class="fas fa-check-circle"></i> Set Background
+  <div class="flex items-center mt-4 space-x-6">
+    <label class="flex items-center">
+      <input type="checkbox" id="toggleAnimation" class="mr-2">
+      Animate
+    </label>
+    <label class="flex items-center">
+      <input type="checkbox" id="toggleBlur" class="mr-2">
+      Blur
+    </label>
+  </div>
+
+  <button id="setBackgroundBtn" disabled class="mt-6 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded shadow">
+    <i class="fas fa-check-circle mr-1"></i> Apply Background
   </button>
+
+  <div id="statusMsg" class="mt-4 text-sm text-green-400"></div>
 
   <script>
     const imageInput = document.getElementById('imageInput');
@@ -67,20 +75,24 @@
     const opacitySlider = document.getElementById('opacitySlider');
     const toggleBlur = document.getElementById('toggleBlur');
     const opacityValue = document.getElementById('opacityValue');
+    const statusMsg = document.getElementById('statusMsg');
+
+    let selectedFile = null;
 
     imageInput.addEventListener('change', (event) => {
       const file = event.target.files[0];
       if (!file || !file.type.startsWith('image/')) {
-        alert('Please select a valid image.');
-        imageInput.value = '';
+        alert('❌ Please select a valid image file.');
         setBackgroundBtn.disabled = true;
+        previewImage.style.backgroundImage = '';
         return;
       }
-
       const reader = new FileReader();
       reader.onload = (e) => {
         previewImage.style.backgroundImage = `url('${e.target.result}')`;
+        previewImage.style.opacity = opacitySlider.value;
         setBackgroundBtn.disabled = false;
+        selectedFile = file;
       };
       reader.readAsDataURL(file);
     });
@@ -92,7 +104,7 @@
     });
 
     toggleBlur.addEventListener('change', () => {
-      previewImage.style.filter = toggleBlur.checked ? 'blur(4px)' : 'none';
+      previewImage.style.filter = toggleBlur.checked ? 'blur(5px)' : 'none';
     });
 
     toggleAnimation.addEventListener('change', () => {
@@ -100,24 +112,75 @@
     });
 
     setBackgroundBtn.addEventListener('click', () => {
-      const file = imageInput.files[0];
-      if (!file) return;
+      if (!selectedFile) return;
 
       const reader = new FileReader();
       reader.onload = (e) => {
-        if (typeof Android !== "undefined" && Android.setSettings) {
+        const base64 = e.target.result;
+
+        if (typeof Android !== 'undefined' && Android.setSettings) {
           Android.setSettings(
             toggleAnimation.checked ? "scroll" : "none",
             toggleBlur.checked ? "true" : "false",
-            opacitySlider.value
+            opacitySlider.value,
+            base64
           );
-          alert(`✅ "${file.name}" sent to Termux background service.`);
+          showToast(`✅ ${selectedFile.name} applied!`);
         } else {
-          alert("⚠️ Android.setSettings() interface not available.");
+          showToast(`✅ ${selectedFile.name} applied!`);
         }
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(selectedFile);
     });
   </script>
 </body>
 </html>
+
+<style>
+  #toast {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #1f2937;
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    z-index: 9999;
+    box-shadow: 0 0 10px #000;
+  }
+</style>
+<div id="toast">✅ Background applied!</div>
+<script>
+  function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 3000);
+  }
+</script>
+
+<script>
+  // Save settings
+  function saveSettings() {
+    localStorage.setItem("animation", toggleAnimation.checked);
+    localStorage.setItem("blur", toggleBlur.checked);
+    localStorage.setItem("opacity", opacitySlider.value);
+  }
+
+  // Load settings
+  function loadSettings() {
+    toggleAnimation.checked = localStorage.getItem("animation") === "true";
+    toggleBlur.checked = localStorage.getItem("blur") === "true";
+    opacitySlider.value = localStorage.getItem("opacity") || 0.8;
+    opacityValue.textContent = opacitySlider.value;
+    previewImage.style.opacity = opacitySlider.value;
+    if (toggleBlur.checked) previewImage.style.filter = 'blur(5px)';
+    if (toggleAnimation.checked) previewImage.classList.add('animate-scroll');
+  }
+
+  loadSettings();
+  [opacitySlider, toggleAnimation, toggleBlur].forEach(e => e.addEventListener('change', saveSettings));
+</script>

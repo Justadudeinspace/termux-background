@@ -1,0 +1,5 @@
+Package: termux-background
+Version: 1.0.4
+Architecture: all
+Maintainer: Justadudeinspace
+Description: Termux plugin for setting background image and animation.

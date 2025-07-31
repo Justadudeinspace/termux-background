@@ -1,0 +1,12 @@
+#!/bin/sh
+echo "[✓] Post-install: Applying Termux background..."
+mkdir -p /data/data/com.termux/files/home/.termux
+cp -f /data/data/com.termux/files/usr/bin/background.png /data/data/com.termux/files/home/.termux/background.png
+{
+  echo "background=background.png"
+  echo "background.opacity=0.8"
+  echo "background.animation=scroll"
+  echo "background.blur=true"
+} >> /data/data/com.termux/files/home/.termux/termux.properties
+am broadcast --user 0 -a com.termux.api.action.RUN_COMMAND --es com.termux.api.extra.COMMAND "termux-reload-settings"
+exit 0
