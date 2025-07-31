@@ -16,7 +16,17 @@ private final static int FILE_CHOOSER_REQUEST_CODE = 1001;
 
 @Override
 protected void onCreate(Bundle savedInstanceState) {
+        setContentView(R.layout.activity_main);
+        WebView webView = findViewById(R.id.webview);
+        webView.getSettings().setJavaScriptEnabled(true);
+        webView.addJavascriptInterface(new WebAppInterface(this), "Android");
+        webView.loadUrl("file:///android_asset/termux-background-ui.html");
     super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        WebView webView = findViewById(R.id.webview);
+        webView.getSettings().setJavaScriptEnabled(true);
+        webView.addJavascriptInterface(new WebAppInterface(this), "Android");
+        webView.loadUrl("file:///android_asset/termux-background-ui.html");
 
     ActivityCompat.requestPermissions(this, new String[]{
             Manifest.permission.READ_EXTERNAL_STORAGE
