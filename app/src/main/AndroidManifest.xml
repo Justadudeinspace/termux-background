@@ -3,7 +3,7 @@
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
   <uses-permission android:name="android.permission.INTERNET"/>
 
-  <application
+  <application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"
       android:allowBackup="true"
       android:label="Termux Background"
       android:theme="@android:style/Theme.Material.Light">

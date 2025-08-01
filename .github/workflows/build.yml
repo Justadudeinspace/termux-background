@@ -8,6 +8,23 @@ on:
 permissions:
   contents: write
 
+  versioning:
+
+    runs-on: ubuntu-latest
+
+    outputs:
+
+      version: ${{ steps.get_version.outputs.version }}
+
+    steps:
+
+      - name: Generate Version Name
+
+        id: get_version
+
+        run: echo "version=$(date +%Y.%m.%d.%H%M)" >> $GITHUB_OUTPUT
+
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -35,6 +52,9 @@ jobs:
         run: ./gradlew assembleDebug
 
       - name: 🚀 Build Release APK
+        env:
+
+          BUILD_VERSION: ${{ steps.versioning.outputs.version }}
         run: ./gradlew assembleRelease
 
       - name: 🔢 Get Next Version (starting from 1.0.0)
