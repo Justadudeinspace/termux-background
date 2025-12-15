@@ -64,6 +64,7 @@ jobs:
         with:
           packages: "build-tools;34.0.0 platform-tools platforms;android-34 cmdline-tools;latest"
 
+      # ✅ PATCH 1: Detect Gradle wrapper location (fixed output)
       - name: 🔎 Detect Gradle wrapper location (repo may not be root)
         run: |
           set -euo pipefail
@@ -75,29 +76,26 @@ jobs:
             exit 1
           fi
           GRADLE_DIR="$(cd "$(dirname "$GRADLEW")" && pwd)"
-          echo "✅ gradlew: $GRADLEW"
+          echo "✅ gradlew: $GRADLE_DIR/gradlew"
           echo "✅ gradle dir: $GRADLE_DIR"
-          echo "GRADLEW=$GRADLEW" >> "$GITHUB_ENV"
           echo "GRADLE_DIR=$GRADLE_DIR" >> "$GITHUB_ENV"
 
+      # ✅ PATCH 2: Make gradlew executable (using absolute path)
       - name: 🔧 Make gradlew executable
-        run: chmod +x "$GRADLEW"
+        run: chmod +x "$GRADLE_DIR/gradlew"
 
+      # ✅ PATCH 3: Clean and build APKs (using ./gradlew after cd)
       - name: 🏗 Clean and build APKs
         run: |
           set -euo pipefail
           cd "$GRADLE_DIR"
 
-          "$GRADLEW" --version
-          # Optional: Add these for debugging if build fails
-          # "$GRADLEW" projects || true
-          # "$GRADLEW" tasks --all || true
-          
-          "$GRADLEW" clean
-          "$GRADLEW" assembleDebug || true
+          ./gradlew --version
+          ./gradlew clean
+          ./gradlew assembleDebug || true
 
           echo "Attempting release build..."
-          "$GRADLEW" assembleRelease || echo "⚠ Release build failed (likely signing). Continuing..."
+          ./gradlew assembleRelease || echo "⚠ Release build failed (likely signing). Continuing..."
 
           echo "Available APKs:"
           find . -path "*/build/outputs/apk/*/*.apk" -print || true
@@ -221,7 +219,6 @@ EOF
           [ -n "$DEBUG_APK" ] && echo "  - $DEBUG_APK"
           [ -n "$RELEASE_APK" ] && echo "  - $RELEASE_APK"
 
-      # ✅ CORRECTED: Upload artifacts with proper wildcard patterns
       - name: ⬆️ Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
