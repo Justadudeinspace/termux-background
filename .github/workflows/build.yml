@@ -64,7 +64,6 @@ jobs:
         with:
           packages: "build-tools;34.0.0 platform-tools platforms;android-34 cmdline-tools;latest"
 
-      # ✅ FIX 1: Detect Gradle wrapper location
       - name: 🔎 Detect Gradle wrapper location (repo may not be root)
         run: |
           set -euo pipefail
@@ -81,17 +80,19 @@ jobs:
           echo "GRADLEW=$GRADLEW" >> "$GITHUB_ENV"
           echo "GRADLE_DIR=$GRADLE_DIR" >> "$GITHUB_ENV"
 
-      # ✅ FIX 2: Make gradlew executable (using detected path)
       - name: 🔧 Make gradlew executable
         run: chmod +x "$GRADLEW"
 
-      # ✅ FIX 3: Clean and build APKs (working from Gradle directory)
       - name: 🏗 Clean and build APKs
         run: |
           set -euo pipefail
           cd "$GRADLE_DIR"
 
           "$GRADLEW" --version
+          # Optional: Add these for debugging if build fails
+          # "$GRADLEW" projects || true
+          # "$GRADLEW" tasks --all || true
+          
           "$GRADLEW" clean
           "$GRADLEW" assembleDebug || true
 
@@ -220,15 +221,15 @@ EOF
           [ -n "$DEBUG_APK" ] && echo "  - $DEBUG_APK"
           [ -n "$RELEASE_APK" ] && echo "  - $RELEASE_APK"
 
-      # ✅ FIX 4: Upload artifacts with flexible APK paths
+      # ✅ CORRECTED: Upload artifacts with proper wildcard patterns
       - name: ⬆️ Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: github-artifacts
+          if-no-files-found: error
           path: |
             termux-background_*.deb
-            ${{ env.GRADLE_DIR }}/app/build/outputs/apk/
-            ${{ env.GRADLE_DIR }}/**/build/outputs/apk/
+            **/build/outputs/apk/**/*.apk
 
   create-release:
     needs: [calculate-version, build-artifacts]
