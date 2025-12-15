@@ -34,11 +34,24 @@
     }
   </style>
 </head>
-
 <body>
-  <h1 class="text-xl font-bold mb-4">
-    <i class="fas fa-image text-blue-400"></i> Termux Background Picker
+  <h1 class="text-xl font-bold mb-4 flex items-center space-x-2">
+    <i class="fas fa-image text-blue-400"></i>
+    <span>Termux Background Picker</span>
   </h1>
+
+  <div class="mb-4 p-3 rounded bg-gray-800 border border-gray-700" id="statusPanel">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="font-semibold" id="statusLabel">Checking Termux...</p>
+        <p class="text-xs text-gray-300" id="statusDetails"></p>
+      </div>
+      <div class="flex space-x-2">
+        <button id="recheckBtn" class="px-3 py-1 text-sm bg-gray-700 rounded hover:bg-gray-600">Re-check</button>
+        <button id="resetBtn" class="px-3 py-1 text-sm bg-red-700 rounded hover:bg-red-600">Reset Background</button>
+      </div>
+    </div>
+  </div>
 
   <label class="block mb-2">Select Background Image:</label>
   <input id="imageInput" type="file" accept="image/*" class="mb-4 bg-gray-800 text-white border border-gray-600 rounded px-3 py-2 w-full">
@@ -47,7 +60,7 @@
 
   <div class="mt-4">
     <label class="block">Opacity: <span id="opacityValue">0.8</span></label>
-    <input type="range" id="opacitySlider" min="0.1" max="1" step="0.01" value="0.8" class="w-full">
+    <input type="range" id="opacitySlider" min="0.0" max="1" step="0.01" value="0.8" class="w-full">
   </div>
 
   <div class="flex items-center mt-4 space-x-6">
@@ -61,11 +74,29 @@
     </label>
   </div>
 
-  <button id="setBackgroundBtn" disabled class="mt-6 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded shadow">
+  <button id="setBackgroundBtn" disabled class="mt-6 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold rounded shadow">
     <i class="fas fa-check-circle mr-1"></i> Apply Background
   </button>
 
   <div id="statusMsg" class="mt-4 text-sm text-green-400"></div>
+
+  <style>
+    #toast {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #1f2937;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      z-index: 9999;
+      box-shadow: 0 0 10px #000;
+    }
+  </style>
+  <div id="toast"></div>
 
   <script>
     const imageInput = document.getElementById('imageInput');
@@ -76,25 +107,96 @@
     const toggleBlur = document.getElementById('toggleBlur');
     const opacityValue = document.getElementById('opacityValue');
     const statusMsg = document.getElementById('statusMsg');
+    const statusLabel = document.getElementById('statusLabel');
+    const statusDetails = document.getElementById('statusDetails');
+    const recheckBtn = document.getElementById('recheckBtn');
+    const resetBtn = document.getElementById('resetBtn');
 
     let selectedFile = null;
+    let selectedUri = null;
+    let lastStatus = { canRunCommands: false };
 
-    imageInput.addEventListener('change', (event) => {
-      const file = event.target.files[0];
-      if (!file || !file.type.startsWith('image/')) {
-        alert('❌ Please select a valid image file.');
-        setBackgroundBtn.disabled = true;
-        previewImage.style.backgroundImage = '';
-        return;
-      }
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      toast.style.backgroundColor = isError ? '#7f1d1d' : '#1f2937';
+      setTimeout(() => { toast.style.display = 'none'; }, 3000);
+    }
+
+    function updatePreview() {
+      if (!selectedFile) return;
       const reader = new FileReader();
       reader.onload = (e) => {
         previewImage.style.backgroundImage = `url('${e.target.result}')`;
         previewImage.style.opacity = opacitySlider.value;
-        setBackgroundBtn.disabled = false;
-        selectedFile = file;
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(selectedFile);
+    }
+
+    function setState(message, details = '', blocked = false, isError = false) {
+      statusLabel.textContent = message;
+      statusDetails.textContent = details;
+      statusMsg.textContent = details;
+      statusMsg.className = 'mt-4 text-sm ' + (isError ? 'text-red-400' : 'text-green-400');
+      setBackgroundBtn.disabled = blocked || !selectedUri;
+    }
+
+    function refreshStatus() {
+      if (typeof Android === 'undefined' || !Android.getStatus) {
+        setState('Running in browser preview', 'Android bridge not available', true, true);
+        return;
+      }
+      try {
+        const status = JSON.parse(Android.getStatus());
+        lastStatus = status;
+        if (!status.termuxInstalled) {
+          setState('Blocked: Install Termux', 'Termux is required.', true, true);
+        } else if (!status.termuxApiInstalled) {
+          setState('Blocked: Install Termux:API', 'Install the Termux:API add-on to enable Apply.', true, true);
+        } else if (!status.canRunCommands) {
+          setState('Blocked', 'Termux:API broadcast not available.', true, true);
+        } else {
+          setState('Ready', 'Termux + Termux:API detected. Select an image and press Apply.', false, false);
+        }
+      } catch (err) {
+        setState('Error', 'Could not read status: ' + err.message, true, true);
+      }
+    }
+
+    function handleResult(raw) {
+      let res = {};
+      try {
+        res = JSON.parse(raw);
+      } catch (err) {
+        setState('Error', 'Invalid response: ' + err.message, true, true);
+        showToast('Invalid response from Android', true);
+        return;
+      }
+      const blocked = !!res.blocked;
+      const ok = !!res.ok;
+      const msg = res.message || '';
+      setState(ok ? 'Applied' : blocked ? 'Blocked' : 'Error', msg, blocked || !lastStatus.canRunCommands, !ok);
+      showToast(msg, !ok);
+    }
+
+    imageInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) {
+        selectedFile = null;
+        selectedUri = null;
+        setBackgroundBtn.disabled = true;
+        previewImage.style.backgroundImage = '';
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        showToast('Please select a PNG or JPEG image.', true);
+        event.target.value = '';
+        return;
+      }
+      selectedFile = file;
+      updatePreview();
+      setBackgroundBtn.disabled = !selectedUri || !lastStatus.canRunCommands;
     });
 
     opacitySlider.addEventListener('input', () => {
@@ -112,75 +214,59 @@
     });
 
     setBackgroundBtn.addEventListener('click', () => {
-      if (!selectedFile) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64 = e.target.result;
-
-        if (typeof Android !== 'undefined' && Android.setSettings) {
-          Android.setSettings(
-            toggleAnimation.checked ? "scroll" : "none",
-            toggleBlur.checked ? "true" : "false",
-            opacitySlider.value,
-            base64
-          );
-          showToast(`✅ ${selectedFile.name} applied!`);
-        } else {
-          showToast(`✅ ${selectedFile.name} applied!`);
-        }
+      if (!selectedUri || !selectedFile) {
+        showToast('Select an image first.', true);
+        return;
+      }
+      const payload = {
+        imageUri: selectedUri,
+        opacity: opacitySlider.value,
+        blur: toggleBlur.checked,
+        animation: toggleAnimation.checked ? 'scroll' : 'none'
       };
-      reader.readAsDataURL(selectedFile);
+      const raw = Android.applyBackground(JSON.stringify(payload));
+      handleResult(raw);
+    });
+
+    recheckBtn.addEventListener('click', () => refreshStatus());
+
+    resetBtn.addEventListener('click', () => {
+      if (typeof Android === 'undefined' || !Android.resetBackground) {
+        showToast('Android bridge not available', true);
+        return;
+      }
+      const raw = Android.resetBackground();
+      handleResult(raw);
+    });
+
+    window.onAndroidFileSelected = (uri) => {
+      selectedUri = uri;
+      setBackgroundBtn.disabled = !uri || !lastStatus.canRunCommands;
+      statusDetails.textContent = uri ? 'Image ready: ' + uri : 'Select an image to continue';
+    };
+
+    function loadSettings() {
+      toggleAnimation.checked = localStorage.getItem("animation") === "true";
+      toggleBlur.checked = localStorage.getItem("blur") === "true";
+      opacitySlider.value = localStorage.getItem("opacity") || 0.8;
+      opacityValue.textContent = opacitySlider.value;
+      previewImage.style.opacity = opacitySlider.value;
+      if (toggleBlur.checked) previewImage.style.filter = 'blur(5px)';
+      if (toggleAnimation.checked) previewImage.classList.add('animate-scroll');
+    }
+
+    function saveSettings() {
+      localStorage.setItem("animation", toggleAnimation.checked);
+      localStorage.setItem("blur", toggleBlur.checked);
+      localStorage.setItem("opacity", opacitySlider.value);
+    }
+
+    loadSettings();
+    [opacitySlider, toggleAnimation, toggleBlur].forEach(e => e.addEventListener('change', saveSettings));
+
+    document.addEventListener('DOMContentLoaded', () => {
+      refreshStatus();
     });
   </script>
 </body>
 </html>
-
-<style>
-  #toast {
-    display: none;
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: #1f2937;
-    color: #fff;
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-weight: 600;
-    z-index: 9999;
-    box-shadow: 0 0 10px #000;
-  }
-</style>
-<div id="toast">✅ Background applied!</div>
-<script>
-  function showToast(msg) {
-    const toast = document.getElementById('toast');
-    toast.textContent = msg;
-    toast.style.display = 'block';
-    setTimeout(() => { toast.style.display = 'none'; }, 3000);
-  }
-</script>
-
-<script>
-  // Save settings
-  function saveSettings() {
-    localStorage.setItem("animation", toggleAnimation.checked);
-    localStorage.setItem("blur", toggleBlur.checked);
-    localStorage.setItem("opacity", opacitySlider.value);
-  }
-
-  // Load settings
-  function loadSettings() {
-    toggleAnimation.checked = localStorage.getItem("animation") === "true";
-    toggleBlur.checked = localStorage.getItem("blur") === "true";
-    opacitySlider.value = localStorage.getItem("opacity") || 0.8;
-    opacityValue.textContent = opacitySlider.value;
-    previewImage.style.opacity = opacitySlider.value;
-    if (toggleBlur.checked) previewImage.style.filter = 'blur(5px)';
-    if (toggleAnimation.checked) previewImage.classList.add('animate-scroll');
-  }
-
-  loadSettings();
-  [opacitySlider, toggleAnimation, toggleBlur].forEach(e => e.addEventListener('change', saveSettings));
-</script>

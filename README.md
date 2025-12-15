@@ -1,145 +1,43 @@
-# Termux Background
+# Termux Background (Android companion)
 
-A Termux plugin and Android companion app that lets you set a background image in your terminal — just like Windows Terminal. Supports opacity, scroll animation, blur effect, and real-time application using `termux-reload-settings`.
+A WebView-based helper that copies a chosen PNG/JPEG into Termux's background and updates `~/.termux/termux.properties`, then reloads settings via **Termux:API**.
 
----
+## Hard requirements (must be installed)
+- [Termux](https://f-droid.org/en/packages/com.termux/)
+- [Termux:API](https://f-droid.org/en/packages/com.termux.api/)
 
-## ✨ Features
+> Apply/Reset stay **disabled** until Termux **and** Termux:API are detected. The app blocks writes if dependencies are missing.
 
-- 📷 **Select background image** (PNG or JPEG)
-- 🎚️ **Opacity control** via slider
-- 🌀 **Scroll animation toggle**
-- 🌫️ **Blur effect toggle**
-- ⚡ Applies instantly using Termux's runtime settings
+## What it does
+1. Lets you pick an image with the Storage Access Framework (no legacy storage permissions).
+2. Preview + tune opacity, blur, and animation (scroll/none).
+3. Writes only when you press **Apply**:
+   - `~/.termux/background.png`
+   - merges the following keys into `~/.termux/termux.properties` while preserving all other lines/comments:
+     - `background=background.png`
+     - `background.opacity=<value>`
+     - `background.blur=<true|false>`
+     - `background.animation=<scroll|none>`
+4. Invokes **Termux:API** to broadcast `termux-reload-settings` and surfaces success/failure in the UI.
+5. **Reset Background** removes the background-related keys, deletes `background.png`, and triggers reload (also blocked if Termux:API is absent).
 
----
+## Usage
+1. Install Termux and Termux:API from F-Droid.
+2. Install this APK (or build locally with `./gradlew assembleRelease`).
+3. Open the app:
+   - Tap **Re-check** if Apply is disabled.
+   - Choose an image → adjust options → press **Apply Background**.
+   - Press **Reset Background** to clear the settings and reload.
 
-## 🚀 Installation
+## Troubleshooting
+- **Apply is disabled**: Install or re-open Termux:API; press **Re-check**.
+- **Reload failed**: Ensure Termux:API is installed and allowed to receive broadcasts.
+- **Unsupported image**: Only PNG/JPEG are accepted.
 
-### 📦 Option A: Install the `.deb` CLI Plugin (recommended)
+## Development
+- Build: `./gradlew assembleDebug`
+- The WebView loads `app/src/main/assets/termux-background-ui.html`.
+- Native bridge lives in `app/src/main/java/com/termuxbackground/WebAppInterface.java` and uses the Termux:API broadcast `com.termux.api.action.RUN_COMMAND`.
 
-```bash
-wget https://github.com/Justadudeinspace/termux-background/releases/download/v1.0.2/termux-background_1.0.2_all.deb
-dpkg -i termux-background_1.0.2_all.deb
-```
-
-Then apply background using:
-
-```
-termux-background
-```
-
-🤖 Option B: Install the Android WebView App (UI-based)
-
-```
-adb install app-release.apk
-```
-
-Launch the app → choose your image → adjust options → click “Set as Termux Background”.
-
-
----
-
-🛠 How It Works
-
-Your selected image is copied to:
-~/.termux/background.png
-
-These settings are written to:
-~/.termux/termux.properties
-
-```
-background=background.png
-background.opacity=0.8
-background.animation=scroll
-background.blur=false
-```
-
-Finally, this is executed:
-
-```
-termux-reload-settings
-```
-
-
----
-
-🧪 Debugging
-
-To manually trigger reload or inspect config:
-
-```
-termux-reload-settings
-cat ~/.termux/termux.properties
-```
-
----
-
-👨‍💻 Development
-
-🔨 Build APK (Android app)
-
-```
-./gradlew clean assembleRelease
-```
-
-📦 Build .deb plugin for Termux
-
-```
-bash build-deb.sh
-```
-
-🧪 Test locally
-
-```
-adb install -r app/build/outputs/apk/release/app-release.apk
-dpkg -i termux-background_1.0.2_all.deb
-```
-
----
-
-📁 File Map
-
-File	Purpose
-
-background.png	Terminal background image
-termux.properties	Terminal appearance settings
-termux-background (CLI)	Shell script to apply background
-termux-background-ui.html	WebView frontend (inside app)
-
-
-
----
-
-📜 License
-
+## License
 MIT License © 2025 Justadudeinspace
-
----
-
-
----
-
-## 🤝 Credits & Contributors
-
-This project was developed with support from:
-
-- [ChatGPT](https://openai.com/chatgpt) – for AI pair programming, logic refactoring, and automation scripting
-- [Blackbox.ai](https://www.blackbox.ai) – for rapid code prototyping and interface scaffolding
-
----
-
-## 📲 Required Termux Components
-
-For this plugin to work, you must have the following installed:
-
-- [Termux App (F-Droid)](https://f-droid.org/en/packages/com.termux/)  
-  > ⚠️ **Do not install from Google Play Store** — it is outdated and unsupported
-
-- [Termux:API](https://f-droid.org/en/packages/com.termux.api/)  
-  > Used to run `am broadcast` and access runtime hooks
-
-Install both with:
-
-```bash
-pkg install termux-api
