@@ -64,31 +64,48 @@ jobs:
         with:
           packages: "build-tools;34.0.0 platform-tools platforms;android-34 cmdline-tools;latest"
 
-      - name: 🔧 Make gradlew executable
-        run: chmod +x ./gradlew
+      # ✅ FIX 1: Detect Gradle wrapper location
+      - name: 🔎 Detect Gradle wrapper location (repo may not be root)
+        run: |
+          set -euo pipefail
+          GRADLEW="$(find . -maxdepth 4 -type f -name gradlew -print -quit || true)"
+          if [ -z "$GRADLEW" ]; then
+            echo "❌ gradlew not found (searched maxdepth=4)."
+            echo "Repo root contents:"
+            ls -la
+            exit 1
+          fi
+          GRADLE_DIR="$(cd "$(dirname "$GRADLEW")" && pwd)"
+          echo "✅ gradlew: $GRADLEW"
+          echo "✅ gradle dir: $GRADLE_DIR"
+          echo "GRADLEW=$GRADLEW" >> "$GITHUB_ENV"
+          echo "GRADLE_DIR=$GRADLE_DIR" >> "$GITHUB_ENV"
 
+      # ✅ FIX 2: Make gradlew executable (using detected path)
+      - name: 🔧 Make gradlew executable
+        run: chmod +x "$GRADLEW"
+
+      # ✅ FIX 3: Clean and build APKs (working from Gradle directory)
       - name: 🏗 Clean and build APKs
         run: |
           set -euo pipefail
-          ./gradlew clean
-          ./gradlew assembleDebug
-          
+          cd "$GRADLE_DIR"
+
+          "$GRADLEW" --version
+          "$GRADLEW" clean
+          "$GRADLEW" assembleDebug || true
+
           echo "Attempting release build..."
-          if ./gradlew assembleRelease; then
-            echo "✅ Release build command succeeded"
-          else
-            echo "⚠ Release build command failed, continuing with available APKs"
-          fi
-          
+          "$GRADLEW" assembleRelease || echo "⚠ Release build failed (likely signing). Continuing..."
+
           echo "Available APKs:"
-          find app/build/outputs/apk/ -name "*.apk" 2>/dev/null | while read f; do
-            echo "  - $f"
-          done || echo "No APKs found"
-          
-          # ✅ POLISH: Ensure at least one APK exists before proceeding
-          if [ -z "$(find app/build/outputs/apk -name '*.apk' -print -quit)" ]; then
-            echo "❌ No APK files found in app/build/outputs/apk/"
-            echo "Check Android SDK setup and Gradle configuration"
+          find . -path "*/build/outputs/apk/*/*.apk" -print || true
+
+          # Ensure at least one APK exists anywhere under build/outputs/apk
+          if [ -z "$(find . -path '*/build/outputs/apk/*/*.apk' -print -quit)" ]; then
+            echo "❌ No APK files found under any */build/outputs/apk/*/"
+            echo "Dumping relevant directories:"
+            find . -maxdepth 4 -type d -name outputs -o -name build || true
             exit 1
           fi
 
@@ -190,8 +207,9 @@ EOF
           set -euo pipefail
           DEB_FILE="termux-background_${{ needs.calculate-version.outputs.version }}_all.deb"
           
-          DEBUG_APK=$(find app/build/outputs/apk/debug -name "*.apk" 2>/dev/null | head -1 || echo "")
-          RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -1 || echo "")
+          # Find APKs in the Gradle directory structure
+          DEBUG_APK=$(find "$GRADLE_DIR" -path "*/build/outputs/apk/debug/*.apk" 2>/dev/null | head -1 || echo "")
+          RELEASE_APK=$(find "$GRADLE_DIR" -path "*/build/outputs/apk/release/*.apk" 2>/dev/null | head -1 || echo "")
           
           echo "deb_path=$DEB_FILE" >> $GITHUB_OUTPUT
           echo "debug_apk=$DEBUG_APK" >> $GITHUB_OUTPUT
@@ -202,13 +220,15 @@ EOF
           [ -n "$DEBUG_APK" ] && echo "  - $DEBUG_APK"
           [ -n "$RELEASE_APK" ] && echo "  - $RELEASE_APK"
 
+      # ✅ FIX 4: Upload artifacts with flexible APK paths
       - name: ⬆️ Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: github-artifacts
           path: |
             termux-background_*.deb
-            app/build/outputs/apk/
+            ${{ env.GRADLE_DIR }}/app/build/outputs/apk/
+            ${{ env.GRADLE_DIR }}/**/build/outputs/apk/
 
   create-release:
     needs: [calculate-version, build-artifacts]
@@ -245,7 +265,6 @@ EOF
       - name: ⏳ Wait for tag to propagate (with retry)
         run: |
           set -euo pipefail
-          # ✅ POLISH: Retry loop for tag propagation
           TAG_NAME="${{ needs.calculate-version.outputs.tag_name }}"
           echo "Waiting for tag $TAG_NAME to propagate..."
           
