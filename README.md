@@ -1,43 +1,84 @@
-# Termux Background (Android companion)
+# Termux Background
 
-A WebView-based helper that copies a chosen PNG/JPEG into Termux's background and updates `~/.termux/termux.properties`, then reloads settings via **Termux:API**.
+> **✨ Status:** Active Development
 
-## Hard requirements (must be installed)
-- [Termux](https://f-droid.org/en/packages/com.termux/)
-- [Termux:API](https://f-droid.org/en/packages/com.termux.api/)
+🖼️ A Termux plugin and Android companion app for adding custom background images to your Termux terminal — with live reload, blur effects, opacity control, and scroll animations.
 
-> Apply/Reset stay **disabled** until Termux **and** Termux:API are detected. The app blocks writes if dependencies are missing.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub stars](https://img.shields.io/github/stars/Justadudeinspace/termux-background.svg)](https://github.com/Justadudeinspace/termux-background/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/Justadudeinspace/termux-background.svg)](https://github.com/Justadudeinspace/termux-background/network)
 
-## What it does
-1. Lets you pick an image with the Storage Access Framework (no legacy storage permissions).
-2. Preview + tune opacity, blur, and animation (scroll/none).
-3. Writes only when you press **Apply**:
-   - `~/.termux/background.png`
-   - merges the following keys into `~/.termux/termux.properties` while preserving all other lines/comments:
-     - `background=background.png`
-     - `background.opacity=<value>`
-     - `background.blur=<true|false>`
-     - `background.animation=<scroll|none>`
-4. Invokes **Termux:API** to broadcast `termux-reload-settings` and surfaces success/failure in the UI.
-5. **Reset Background** removes the background-related keys, deletes `background.png`, and triggers reload (also blocked if Termux:API is absent).
+## Overview
 
-## Usage
-1. Install Termux and Termux:API from F-Droid.
-2. Install this APK (or build locally with `./gradlew assembleRelease`).
-3. Open the app:
-   - Tap **Re-check** if Apply is disabled.
-   - Choose an image → adjust options → press **Apply Background**.
-   - Press **Reset Background** to clear the settings and reload.
+Termux Background brings Windows Terminal-style background customization to Termux, allowing you to personalize your Android terminal experience with custom images, visual effects, and real-time configuration updates. The project consists of two components:
 
-## Troubleshooting
-- **Apply is disabled**: Install or re-open Termux:API; press **Re-check**.
-- **Reload failed**: Ensure Termux:API is installed and allowed to receive broadcasts.
-- **Unsupported image**: Only PNG/JPEG are accepted.
+- **Android Companion App**: User-friendly GUI for selecting and configuring background images
+- **CLI Tool**: Command-line interface for managing background settings directly from Termux
 
-## Development
-- Build: `./gradlew assembleDebug`
-- The WebView loads `app/src/main/assets/termux-background-ui.html`.
-- Native bridge lives in `app/src/main/java/com/termuxbackground/WebAppInterface.java` and uses the Termux:API broadcast `com.termux.api.action.RUN_COMMAND`.
+## Features
 
-## License
-MIT License © 2025 Justadudeinspace
+### 🎨 Visual Customization
+- **Custom Background Images**: Set PNG or JPEG images as your terminal background
+- **Opacity Control**: Adjust background transparency to maintain text readability
+- **Blur Effect**: Apply gaussian blur for a modern, aesthetic appearance
+- **Scroll Animation**: Enable smooth scrolling animation for dynamic backgrounds
+- **Live Preview**: See changes in real-time before applying
+
+### ⚡ Performance & Usability
+- **Live Reload**: Instantly apply settings without restarting Termux
+- **Storage Access Framework**: Modern file picker with no legacy storage permissions required
+- **Dependency Detection**: Automatic verification of required Termux components
+- **Safe Operations**: Write protection when dependencies are missing
+- **Settings Preservation**: Maintains all existing `termux.properties` configurations
+
+## Requirements
+
+### Hard Dependencies
+Both must be installed for the app to function:
+
+1. **[Termux](https://f-droid.org/en/packages/com.termux/)** - Terminal emulator for Android
+2. **[Termux:API](https://f-droid.org/en/packages/com.termux.api/)** - API bridge for system integration
+
+> **Note:** The Apply and Reset buttons remain disabled until both dependencies are detected. Install from F-Droid for best compatibility.
+
+## Installation
+
+### Option 1: Pre-built Packages (Recommended)
+
+#### Android App
+Download and install the latest APK from the [Releases](https://github.com/Justadudeinspace/termux-background/releases) page:
+
+```bash
+# Download latest release
+wget https://github.com/Justadudeinspace/termux-background/releases/download/latest/termux-background.apk
+
+# Install via ADB (if using from PC)
+adb install termux-background.apk
+```
+
+#### CLI Tool
+```bash
+# Download the Debian package
+wget https://github.com/Justadudeinspace/termux-background/releases/download/v1.0.4/termux-background_1.0.4_all.deb
+
+# Install with dpkg
+dpkg -i termux-background_1.0.4_all.deb
+```
+
+### Option 2: Build from Source
+
+#### Prerequisites
+- Android Studio or Android SDK
+- Gradle
+- JDK 8 or higher
+
+#### Building the Android App
+```bash
+# Clone the repository
+git clone https://github.com/Justadudeinspace/termux-background.git
+cd termux-background
+
+# Build debug APK
+./gradlew assembleDebug
+
+# Build release APK
