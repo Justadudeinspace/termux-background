@@ -8,117 +8,277 @@ on:
 permissions:
   contents: write
 
-  versioning:
-
-    runs-on: ubuntu-latest
-
-    outputs:
-
-      version: ${{ steps.get_version.outputs.version }}
-
-    steps:
-
-      - name: Generate Version Name
-
-        id: get_version
-
-        run: echo "version=$(date +%Y.%m.%d.%H%M)" >> $GITHUB_OUTPUT
-
-
 jobs:
-  release:
+  versioning:
     runs-on: ubuntu-latest
-
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
     steps:
       - name: 🧾 Checkout Repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Get all history for tags
+
+      - name: 🔢 Get Next Semantic Version
+        id: get_version
+        run: |
+          # Get the latest semantic version tag
+          latest_tag=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
+          
+          if [ -z "$latest_tag" ]; then
+            # No tags found, start from 1.0.0
+            new_version="1.0.0"
+          else
+            # Remove 'v' prefix and split version
+            version="${latest_tag#v}"
+            IFS='.' read -r major minor patch <<< "$version"
+            
+            # Auto-increment patch version
+            patch=$((patch + 1))
+            new_version="$major.$minor.$patch"
+          fi
+          
+          echo "version=$new_version" >> $GITHUB_OUTPUT
+          echo "📌 Building version: $new_version"
+
+  release:
+    needs: versioning
+    runs-on: ubuntu-latest
+    env:
+      BUILD_VERSION: ${{ needs.versioning.outputs.version }}
+    
+    steps:
+      - name: 🧾 Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: 📝 Setup Gradle Properties
+        run: |
+          echo "RELEASE_VERSION=${{ needs.versioning.outputs.version }}" >> $GITHUB_ENV
+          mkdir -p ~/.gradle
+          echo "org.gradle.parallel=true" > ~/.gradle/gradle.properties
+          echo "org.gradle.caching=true" >> ~/.gradle/gradle.properties
+          echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
 
       - name: ☕ Set up Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
-          java-version: '21'
+          java-version: '17'  # Android typically uses Java 17 or 11
 
       - name: 📦 Set up Android SDK
-        uses: android-actions/setup-android@v2
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 'latest'
 
       - name: 🔧 Make gradlew Executable
         run: chmod +x ./gradlew
 
-      - name: 🏗 Build Debug APK
-        run: ./gradlew assembleDebug
+      - name: 📊 Validate Gradle Wrapper
+        run: ./gradlew --version
 
-      - name: 🚀 Build Release APK
+      - name: 🏗 Build APKs
+        run: |
+          ./gradlew clean
+          ./gradlew assembleDebug
+          ./gradlew assembleRelease
         env:
+          BUILD_VERSION: ${{ needs.versioning.outputs.version }}
 
-          BUILD_VERSION: ${{ steps.versioning.outputs.version }}
-        run: ./gradlew assembleRelease
-
-      - name: 🔢 Get Next Version (starting from 1.0.0)
-        id: versioning
+      - name: 🧱 Create deb Directory Structure
         run: |
-          latest=$(git tag --sort=-v:refname | grep -E '^version-[0-9]+\.[0-9]+\.[0-9]+$' | tail -n1)
-          if [ -z "$latest" ]; then
-            version="1.0.0"
-          else
-            IFS='.' read -r major minor patch <<<"$(echo $latest | sed 's/version-//')"
-            version="$major.$minor.$((patch+1))"
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "📌 Building version: $version"
+          mkdir -p package/DEBIAN
+          mkdir -p package/data/data/com.termux/files/usr/bin
+          mkdir -p package/data/data/com.termux/files/home/.termux
 
-      - name: 🧱 Create debfix Directory
+      - name: 📝 Write DEBIAN/control
         run: |
-          mkdir -p debfix/DEBIAN
-          mkdir -p debfix/data/data/com.termux/files/usr/bin
+          cat > package/DEBIAN/control << EOF
+Package: termux-background
+Version: ${{ needs.versioning.outputs.version }}
+Architecture: all
+Maintainer: Justadudeinspace
+Description: Termux plugin for setting background images
+ A simple utility to set and manage background images
+ in Termux terminal emulator.
+EOF
 
-      - name: 📝 Write DEB control file
+      - name: 📝 Write postinst Script
         run: |
-          echo "Package: termux-background" > debfix/DEBIAN/control
-          echo "Version: ${{ steps.versioning.outputs.version }}" >> debfix/DEBIAN/control
-          echo "Architecture: all" >> debfix/DEBIAN/control
-          echo "Maintainer: Justadudeinspace" >> debfix/DEBIAN/control
-          echo "Description: Termux plugin for background image" >> debfix/DEBIAN/control
+          cat > package/DEBIAN/postinst << 'EOF'
+#!/data/data/com.termux/files/usr/bin/bash
 
-      - name: ⚙️ Write install shell script to DEB
+echo "Termux Background Installer"
+echo "=========================="
+
+# Create necessary directories
+mkdir -p $HOME/.termux
+
+# Copy background if it exists in package
+if [ -f /data/data/com.termux/files/usr/share/termux-background/background.png ]; then
+    cp /data/data/com.termux/files/usr/share/termux-background/background.png $HOME/.termux/background.png
+    echo "✓ Default background installed"
+fi
+
+# Update termux.properties if needed
+PROP_FILE="$HOME/.termux/termux.properties"
+BACKUP_FILE="$PROP_FILE.bak-$(date +%Y%m%d%H%M%S)"
+
+if [ ! -f "$PROP_FILE" ] || ! grep -q "background=" "$PROP_FILE"; then
+    echo "background=background.png" >> "$PROP_FILE"
+    echo "background.opacity=0.8" >> "$PROP_FILE"
+    echo "background.animation=scroll" >> "$PROP_FILE"
+    echo "✓ Added background settings to termux.properties"
+elif grep -q "background=" "$PROP_FILE"; then
+    echo "ℹ Background settings already exist in termux.properties"
+fi
+
+echo ""
+echo "To set a custom background, run:"
+echo "  termux-background /path/to/your/image.png"
+echo ""
+echo "To apply changes: termux-reload-settings"
+EOF
+
+      - name: ⚙️ Create Main Script
         run: |
-          script_path=debfix/data/data/com.termux/files/usr/bin/termux-background
-          echo '#!/data/data/com.termux/files/usr/bin/bash' > $script_path
-          echo 'mkdir -p ~/.termux' >> $script_path
-          echo 'cp -f ~/termux-background/background.png ~/.termux/background.png' >> $script_path
-          echo 'grep -q "background=" ~/.termux/termux.properties || {' >> $script_path
-          echo '  echo "background=background.png" >> ~/.termux/termux.properties' >> $script_path
-          echo '  echo "background.opacity=0.8" >> ~/.termux/termux.properties' >> $script_path
-          echo '  echo "background.animation=scroll" >> ~/.termux/termux.properties' >> $script_path
-          echo '}' >> $script_path
-          echo 'termux-reload-settings' >> $script_path
-          chmod +x $script_path
+          cat > package/data/data/com.termux/files/usr/bin/termux-background << 'EOF'
+#!/data/data/com.termux/files/usr/bin/bash
+
+set -e
+
+show_help() {
+    echo "Usage: termux-background [OPTIONS] [IMAGE_PATH]"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help      Show this help message"
+    echo "  -v, --version   Show version information"
+    echo "  -r, --remove    Remove current background"
+    echo "  -s, --show      Show current background path"
+    echo ""
+    echo "Examples:"
+    echo "  termux-background ~/Pictures/wallpaper.png"
+    echo "  termux-background --remove"
+    echo "  termux-background --show"
+}
+
+VERSION="${{ needs.versioning.outputs.version }}"
+TERMUX_DIR="$HOME/.termux"
+PROP_FILE="$TERMUX_DIR/termux.properties"
+BG_FILE="$TERMUX_DIR/background.png"
+
+# Ensure termux directory exists
+mkdir -p "$TERMUX_DIR"
+
+case "$1" in
+    -h|--help)
+        show_help
+        ;;
+    -v|--version)
+        echo "termux-background version $VERSION"
+        ;;
+    -r|--remove)
+        if [ -f "$BG_FILE" ]; then
+            rm "$BG_FILE"
+            echo "✓ Background removed"
+        else
+            echo "ℹ No background image found"
+        fi
+        ;;
+    -s|--show)
+        if [ -f "$BG_FILE" ]; then
+            echo "Current background: $BG_FILE"
+            echo "File size: $(du -h "$BG_FILE" | cut -f1)"
+        else
+            echo "No background image set"
+        fi
+        ;;
+    "")
+        echo "No image specified. Current status:"
+        if [ -f "$BG_FILE" ]; then
+            echo "✓ Background is set: $BG_FILE"
+        else
+            echo "✗ No background image set"
+        fi
+        ;;
+    *)
+        IMAGE_PATH="$1"
+        
+        if [ ! -f "$IMAGE_PATH" ]; then
+            echo "Error: File not found: $IMAGE_PATH"
+            exit 1
+        fi
+        
+        # Check if it's an image file
+        if ! file "$IMAGE_PATH" | grep -qi "image"; then
+            echo "Error: Not a valid image file: $IMAGE_PATH"
+            exit 1
+        fi
+        
+        # Copy the image
+        cp "$IMAGE_PATH" "$BG_FILE"
+        echo "✓ Background set: $BG_FILE"
+        
+        # Ensure properties file has background settings
+        if [ ! -f "$PROP_FILE" ] || ! grep -q "background=" "$PROP_FILE"; then
+            echo "background=background.png" >> "$PROP_FILE"
+            echo "background.opacity=0.8" >> "$PROP_FILE"
+            echo "background.animation=scroll" >> "$PROP_FILE"
+            echo "✓ Added background settings"
+        fi
+        
+        echo ""
+        echo "To apply changes immediately, run:"
+        echo "  termux-reload-settings"
+        ;;
+esac
+EOF
+
+      - name: 🔧 Set Script Permissions
+        run: |
+          chmod 755 package/data/data/com.termux/files/usr/bin/termux-background
+          chmod 755 package/DEBIAN/postinst
 
       - name: 📦 Build .deb Package
         run: |
-          dpkg-deb -b debfix termux-background_${{ steps.versioning.outputs.version }}_all.deb
+          dpkg-deb -Zgzip -b package "termux-background_${{ needs.versioning.outputs.version }}_all.deb"
+          echo "✅ Built package: termux-background_${{ needs.versioning.outputs.version }}_all.deb"
 
-      - name: 🏷️ Tag This Version
+      - name: 🏷️ Create Git Tag
         run: |
-          version=${{ steps.versioning.outputs.version }}
-          tag="version-$version"
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          if git rev-parse "$tag" >/dev/null 2>&1; then
-            echo "🔁 Tag $tag already exists. Skipping tag creation."
+          VERSION="${{ needs.versioning.outputs.version }}"
+          TAG="v$VERSION"
+          
+          # Check if tag already exists
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "⚠ Tag $TAG already exists. Skipping tag creation."
           else
-            git tag "$tag"
-            git push origin "$tag"
+            git config user.name "github-actions"
+            git config user.email "github-actions@github.com"
+            git tag -a "$TAG" -m "Release version $VERSION"
+            git push origin "$TAG"
+            echo "✅ Created tag: $TAG"
           fi
 
-      - name: 🚀 Publish GitHub Release
+      - name: 📊 Verify Artifacts
+        run: |
+          echo "📦 Generated artifacts:"
+          ls -la app/build/outputs/apk/debug/*.apk 2>/dev/null || echo "⚠ No debug APK found"
+          ls -la app/build/outputs/apk/release/*.apk 2>/dev/null || echo "⚠ No release APK found"
+          ls -la *.deb 2>/dev/null || echo "⚠ No .deb package found"
+
+      - name: 🚀 Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: version-${{ steps.versioning.outputs.version }}
+          tag_name: v${{ needs.versioning.outputs.version }}
+          name: "Termux Background v${{ needs.versioning.outputs.version }}"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
           files: |
-            app/build/outputs/apk/debug/app-debug.apk
-            app/build/outputs/apk/release/app-release.apk
-            termux-background_${{ steps.versioning.outputs.version }}_all.deb
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+            termux-background_${{ needs.versioning.outputs.version }}_all.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
