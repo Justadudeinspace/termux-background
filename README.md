@@ -82,3 +82,25 @@ cd termux-background
 ./gradlew assembleDebug
 
 # Build release APK
+./gradlew assembleRelease
+```
+
+## 📦 APK Builds & Releases
+
+### Debug builds (CI)
+- Triggered on PRs, pushes to `main`, or manual runs.
+- Produces a debug APK as a workflow artifact (`apk-debug`).
+
+### Release builds (signed)
+- Tag a version to publish:
+  - git tag v1.0.0
+  - git push origin v1.0.0
+- Workflow builds a signed release APK and attaches it to a GitHub Release.
+
+### Required GitHub Secrets (for release signing)
+Set these in GitHub → Repo → Settings → Secrets and variables → Actions:
+
+- ANDROID_KEYSTORE_BASE64
+- ANDROID_KEYSTORE_PASSWORD
+- ANDROID_KEY_ALIAS
+- ANDROID_KEY_PASSWORD

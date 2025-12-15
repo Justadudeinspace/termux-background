@@ -1,0 +1,68 @@
+name: Android Release (Signed APK)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Ensure Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Decode signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android-signing.keystore
+          ls -lah android-signing.keystore
+
+      - name: Create keystore.properties (runtime only)
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cat > keystore.properties <<EOF2
+          storeFile=android-signing.keystore
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          EOF2
+          sed -e 's/storePassword=.*/storePassword=***REDACTED***/' \
+              -e 's/keyPassword=.*/keyPassword=***REDACTED***/' keystore.properties
+
+      - name: Build Release APK
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon clean assembleRelease
+
+      - name: Verify release APK output
+        run: |
+          set -euo pipefail
+          ls -lah app/build/outputs/apk/release/
+          test -n "$(ls -1 app/build/outputs/apk/release/*.apk 2>/dev/null || true)"
+
+      - name: Create GitHub Release + upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/*.apk
