@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:gravity="top">
+
+    <TextView
+        android:id="@+id/fallback_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Termux Background"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:id="@+id/fallback_subtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="UI failed to load"
+        android:textSize="18sp"
+        android:gravity="center"
+        android:layout_marginBottom="16dp"/>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:id="@+id/fallback_diagnostics"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textIsSelectable="true"
+            android:fontFamily="monospace"
+            android:textSize="12sp"
+            android:padding="8dp"
+            android:background="#F0F0F0"/>
+    </ScrollView>
+
+    <Button
+        android:id="@+id/btn_copy_diagnostics"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Copy Diagnostics"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btn_open_termux"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Open Termux"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btn_open_termux_api"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Open Termux:API"/>
+
+</LinearLayout>
