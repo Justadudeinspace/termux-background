@@ -1,106 +1,66 @@
 # Termux Background
 
-> **✨ Status:** Active Development
-
-🖼️ A Termux plugin and Android companion app for adding custom background images to your Termux terminal — with live reload, blur effects, opacity control, and scroll animations.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub stars](https://img.shields.io/github/stars/Justadudeinspace/termux-background.svg)](https://github.com/Justadudeinspace/termux-background/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/Justadudeinspace/termux-background.svg)](https://github.com/Justadudeinspace/termux-background/network)
-
-## Overview
-
-Termux Background brings Windows Terminal-style background customization to Termux, allowing you to personalize your Android terminal experience with custom images, visual effects, and real-time configuration updates. The project consists of two components:
-
-- **Android Companion App**: User-friendly GUI for selecting and configuring background images
-- **CLI Tool**: Command-line interface for managing background settings directly from Termux
-
-## Features
-
-### 🎨 Visual Customization
-- **Custom Background Images**: Set PNG or JPEG images as your terminal background
-- **Opacity Control**: Adjust background transparency to maintain text readability
-- **Blur Effect**: Apply gaussian blur for a modern, aesthetic appearance
-- **Scroll Animation**: Enable smooth scrolling animation for dynamic backgrounds
-- **Live Preview**: See changes in real-time before applying
-
-### ⚡ Performance & Usability
-- **Live Reload**: Instantly apply settings without restarting Termux
-- **Storage Access Framework**: Modern file picker with no legacy storage permissions required
-- **Dependency Detection**: Automatic verification of required Termux components
-- **Safe Operations**: Write protection when dependencies are missing
-- **Settings Preservation**: Maintains all existing `termux.properties` configurations
+Termux Background provides a small Android companion UI and a Termux command line tool for managing terminal background settings. The CLI is the supported way to apply changes: Android keeps each app's private files isolated, so the companion cannot safely write directly into Termux's private `~/.termux` directory. The Android UI currently provides dependency status and a preview, and directs users to the CLI for changes.
 
 ## Requirements
 
-### Hard Dependencies
-Both must be installed for the app to function:
+- Termux and Termux:API from the same trusted distribution source, for the Android companion's dependency checks.
+- Android 7.0 (API 24) or later for the companion app.
+- Termux with `termux-reload-settings` available for applying CLI changes.
 
-1. **[Termux](https://f-droid.org/en/packages/com.termux/)** - Terminal emulator for Android
-2. **[Termux:API](https://f-droid.org/en/packages/com.termux.api/)** - API bridge for system integration
+The project builds against Android SDK 35 and targets Android 15. Physical-device checks are still needed for Android 15 and newer.
 
-> **Note:** The Apply and Reset buttons remain disabled until both dependencies are detected. Install from F-Droid for best compatibility.
+## Install
 
-## Installation
+Install the APK from a project release or build it yourself:
 
-### Option 1: Pre-built Packages (Recommended)
-
-#### Android App
-Download and install the latest APK from the [Releases](https://github.com/Justadudeinspace/termux-background/releases) page:
-
-```bash
-# Download latest release
-wget https://github.com/Justadudeinspace/termux-background/releases/download/latest/termux-background.apk
-
-# Install via ADB (if using from PC)
-adb install termux-background.apk
+```sh
+adb install termux-background-1.1.0.apk
 ```
 
-#### CLI Tool
-```bash
-# Download the Debian package
-wget https://github.com/Justadudeinspace/termux-background/releases/download/v1.0.4/termux-background_1.0.4_all.deb
+Install the Debian package from inside Termux:
 
-# Install with dpkg
-dpkg -i termux-background_1.0.4_all.deb
+```sh
+dpkg -i termux-background_1.1.0_all.deb
 ```
 
-### Option 2: Build from Source
+## CLI usage
 
-#### Prerequisites
-- Android Studio or Android SDK
-- Gradle
-- JDK 8 or higher
+```sh
+termux-background set --image ~/Pictures/terminal.png --opacity 0.8 --blur false --animation scroll
+termux-background status
+termux-background reload
+termux-background reset
+termux-background help
+termux-background version
+```
 
-#### Building the Android App
-```bash
-# Clone the repository
+`set` accepts PNG or JPEG images, opacity from 0 through 1, `true`/`false` blur, and `none`/`scroll` animation. It installs the selected image at `~/.termux/background.png`, updates only the background keys in `termux.properties`, and reloads settings. `reset` removes those managed keys and image while retaining unrelated properties. A reload failure is reported even though the files may already have been written.
+
+Exit codes: `0` success, `1` general failure, `2` invalid arguments, `3` missing dependency, `4` file access failure, and `5` configuration/reload failure.
+
+## Build from source
+
+Requires JDK 17 and Android SDK platform/build tools 35:
+
+```sh
 git clone https://github.com/Justadudeinspace/termux-background.git
 cd termux-background
-
-# Build debug APK
-./gradlew assembleDebug
-
-# Build release APK
+./gradlew clean assembleDebug
 ./gradlew assembleRelease
+./build-deb.sh
+./tests/cli_test.sh
 ```
 
-## 📦 APK Builds & Releases
+Release APKs are unsigned unless signing credentials are supplied externally. Set `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD` in the environment. Never commit keystores or credentials. GitHub Actions accepts the same values through repository secrets (`ANDROID_KEYSTORE_BASE64` for the keystore file). The previously committed signing key is removed and must be considered compromised; apps signed with a replacement key cannot update installations signed by that old key, so those installations must be uninstalled before installing a newly signed build.
 
-### Debug builds (CI)
-- Triggered on PRs, pushes to `main`, or manual runs.
-- Produces a debug APK as a workflow artifact (`apk-debug`).
+## Troubleshooting
 
-### Release builds (signed)
-- Tag a version to publish:
-  - git tag v1.0.0
-  - git push origin v1.0.0
-- Workflow builds a signed release APK and attaches it to a GitHub Release.
+- **Termux missing:** install Termux before using its configuration tools.
+- **Reload command missing:** install/update Termux tools so `termux-reload-settings` is available.
+- **Image type check unavailable:** install the Termux `file` package (also declared as a Debian dependency).
+- **CLI says image unreadable:** use a path readable by the Termux shell, such as a file in `$HOME`; Android picker URIs are not shell paths.
+- **Reload failed:** the config was written but may not yet be active; run `termux-background reload` after resolving the Termux command issue.
+- **Android companion says configuration is inaccessible:** this is Android app sandbox isolation. Apply settings from the Termux CLI as shown above.
 
-### Required GitHub Secrets (for release signing)
-Set these in GitHub → Repo → Settings → Secrets and variables → Actions:
-
-- ANDROID_KEYSTORE_BASE64
-- ANDROID_KEYSTORE_PASSWORD
-- ANDROID_KEY_ALIAS
-- ANDROID_KEY_PASSWORD
+The companion's Diagnostics option provides app, OS, and dependency information for bug reports. It does not include file contents or credentials.

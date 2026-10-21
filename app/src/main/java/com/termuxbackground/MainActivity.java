@@ -30,11 +30,10 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AlertDialog;
 
 import org.json.JSONObject;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -67,14 +66,22 @@ public class MainActivity extends AppCompatActivity {
             WebSettings settings = webView.getSettings();
             settings.setJavaScriptEnabled(true);
             settings.setAllowFileAccess(true);
+            settings.setAllowFileAccessFromFileURLs(false);
+            settings.setAllowUniversalAccessFromFileURLs(false);
+            settings.setAllowContentAccess(false);
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
             settings.setDomStorageEnabled(true);
-            settings.setAllowContentAccess(true);
             Log.d(TAG, "BOOT: webview settings applied");
 
-            bridge = new WebAppInterface(this, webView);
+            bridge = new WebAppInterface(this);
             webView.addJavascriptInterface(bridge, "Android");
 
             webView.setWebViewClient(new WebViewClient() {
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                    return !"file:///android_asset/termux-background-ui.html".equals(request.getUrl().toString());
+                }
+
                 @Override
                 public void onPageStarted(WebView view, String url, Bitmap favicon) {
                     Log.d(TAG, "BOOT: webview onPageStarted: " + url);
@@ -179,7 +186,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showDiagnostics() {
-        showFallbackUI(null);
+        String diagnostics = buildDiagnostics(null);
+        new AlertDialog.Builder(this)
+            .setTitle("Diagnostics")
+            .setMessage(diagnostics)
+            .setPositiveButton("Copy", (dialog, which) -> {
+                ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                clipboard.setPrimaryClip(ClipData.newPlainText("Termux Background diagnostics", diagnostics));
+                Toast.makeText(this, "Diagnostics copied", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("Close", null)
+            .show();
     }
 
     private String buildDiagnostics(@Nullable Exception e) {
@@ -205,16 +222,16 @@ public class MainActivity extends AppCompatActivity {
 
         // WebView status
         sb.append("WebView reached: ").append(webViewReached ? "YES" : "NO").append("\n\n");
+        sb.append("Configuration access: UNAVAILABLE (Android app sandbox)\n");
+        sb.append("Command bridge: NOT USED\n");
+        sb.append("Settings reload: NOT RUN\n\n");
 
         // Error info
         if (e != null) {
             sb.append("Exception: ").append(e.getClass().getName()).append("\n");
             sb.append("Message: ").append(e.getMessage()).append("\n\n");
             
-            StringWriter sw = new StringWriter();
-            PrintWriter pw = new PrintWriter(sw);
-            e.printStackTrace(pw);
-            sb.append("Stack Trace:\n").append(sw.toString());
+            sb.append("Details: ").append(e.getClass().getSimpleName()).append(" (details omitted)\n\n");
         } else if (lastError != null) {
             sb.append("Last Error: ").append(lastError).append("\n");
         } else {

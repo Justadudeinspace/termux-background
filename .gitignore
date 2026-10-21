@@ -2,6 +2,13 @@
 /build/
 /app/build/
 *.apk
+*.aab
+*.deb
+*.jks
+*.keystore
+keystore.properties
+local.properties
+UPGRADE_REPORT.md.tmp
 
 # IDE / editor junk
 .idea/

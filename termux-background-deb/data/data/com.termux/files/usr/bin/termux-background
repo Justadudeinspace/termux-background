@@ -1,14 +1,95 @@
 #!/data/data/com.termux/files/usr/bin/bash
+set -u
+VERSION="${TERMUX_BACKGROUND_VERSION:-1.1.0}"
+CONFIG_DIR="${TERMUX_BACKGROUND_CONFIG_DIR:-$HOME/.termux}"
+PROP_FILE="$CONFIG_DIR/termux.properties"
+BG_FILE="$CONFIG_DIR/background.png"
 
-echo "[✓] Setting Termux background..."
-mkdir -p ~/.termux
-cp -f ~/termux-background/background.png ~/.termux/background.png
+usage() {
+  cat <<USAGE
+Usage:
+  termux-background set --image PATH [--opacity 0..1] [--blur true|false] [--animation none|scroll]
+  termux-background remove|reset|status|reload|help|version
 
-grep -q "background=" ~/.termux/termux.properties 2>/dev/null || {
-  echo "background=background.png" >> ~/.termux/termux.properties
-  echo "background.opacity=0.8" >> ~/.termux/termux.properties
-  echo "background.animation=scroll" >> ~/.termux/termux.properties
+set copies a PNG or JPEG image to ~/.termux/background.png, updates only
+background.* properties, then reloads Termux settings. reset/remove removes
+those settings and the managed image while preserving unrelated properties.
+USAGE
+}
+err() { printf 'termux-background: %s\n' "$1" >&2; exit "${2:-1}"; }
+valid_opacity() { [[ "$1" =~ ^([0-1](\.[0-9]+)?|\.[0-9]+)$ ]] && awk -v n="$1" 'BEGIN { exit !(n >= 0 && n <= 1) }'; }
+
+atomic_properties() {
+  local mode="$1" opacity="${2:-}" blur="${3:-}" animation="${4:-}" tmp line key
+  mkdir -p "$CONFIG_DIR" || err "cannot create $CONFIG_DIR" 4
+  tmp=$(mktemp "$CONFIG_DIR/.termux.properties.XXXXXX") || err 'cannot create temporary config' 5
+  if [[ -f "$PROP_FILE" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      key="${line%%=*}"
+      if [[ "$line" == *=* && ( "$key" == background || "$key" == background.opacity || "$key" == background.blur || "$key" == background.animation ) ]]; then
+        continue
+      fi
+      printf '%s\n' "$line" >> "$tmp"
+    done < "$PROP_FILE" || { rm -f "$tmp"; err 'cannot read termux.properties' 5; }
+  elif [[ "$mode" == reset ]]; then
+    rm -f "$tmp"
+    return 0
+  fi
+  if [[ "$mode" == set ]]; then
+    printf '\n# Managed by termux-background\nbackground=background.png\nbackground.opacity=%s\nbackground.blur=%s\nbackground.animation=%s\n' "$opacity" "$blur" "$animation" >> "$tmp"
+  fi
+  chmod 600 "$tmp" && mv -f "$tmp" "$PROP_FILE" || { rm -f "$tmp"; err 'cannot replace termux.properties' 5; }
+}
+reload() {
+  command -v termux-reload-settings >/dev/null 2>&1 || err 'termux-reload-settings is unavailable' 3
+  termux-reload-settings || err 'settings were written, but Termux reload failed' 5
 }
 
-termux-reload-settings
-echo "[✓] Applied background and reloaded Termux."
+[[ $# -gt 0 ]] || { usage >&2; exit 2; }
+command_name="$1"; shift
+case "$command_name" in
+  help|-h|--help) usage; exit 0 ;;
+  version|--version|-V) printf '%s\n' "$VERSION"; exit 0 ;;
+  status)
+    if [[ -f "$PROP_FILE" ]] && grep -q '^background=background.png[[:space:]]*$' "$PROP_FILE" && [[ -f "$BG_FILE" ]]; then
+      printf 'Background set: %s\n' "$BG_FILE"
+    else
+      printf 'No managed background configured\n'
+    fi
+    exit 0 ;;
+  reload) reload; exit 0 ;;
+  remove|reset)
+    atomic_properties reset
+    rm -f "$BG_FILE" || err 'cannot remove managed background image' 5
+    reload
+    printf 'Background removed and settings reloaded\n'
+    exit 0 ;;
+  set) ;;
+  *) printf 'Unknown command: %s\n' "$command_name" >&2; usage >&2; exit 2 ;;
+esac
+
+image=''; opacity='0.8'; blur='false'; animation='none'
+while (($#)); do
+  case "$1" in
+    --image) (($# >= 2)) || err '--image requires a path' 2; image="$2"; shift 2 ;;
+    --opacity) (($# >= 2)) || err '--opacity requires a value' 2; opacity="$2"; shift 2 ;;
+    --blur) (($# >= 2)) || err '--blur requires true or false' 2; blur="$2"; shift 2 ;;
+    --animation) (($# >= 2)) || err '--animation requires none or scroll' 2; animation="$2"; shift 2 ;;
+    *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
+  esac
+done
+[[ -n "$image" ]] || err 'set requires --image PATH' 2
+[[ -f "$image" && -r "$image" ]] || err "image is missing or unreadable: $image" 4
+image_size=$(wc -c < "$image") || err 'cannot read image size' 4
+(( image_size <= 52428800 )) || err 'image exceeds the 50 MiB limit' 2
+file "$image" | grep -Eqi 'PNG image data|JPEG image data' || err 'image must be PNG or JPEG' 2
+valid_opacity "$opacity" || err 'opacity must be between 0 and 1' 2
+[[ "$blur" == true || "$blur" == false ]] || err 'blur must be true or false' 2
+[[ "$animation" == none || "$animation" == scroll ]] || err 'animation must be none or scroll' 2
+mkdir -p "$CONFIG_DIR" || err "cannot create $CONFIG_DIR" 4
+image_tmp=$(mktemp "$CONFIG_DIR/.background.XXXXXX") || err 'cannot create image temporary file' 5
+cp -- "$image" "$image_tmp" || { rm -f "$image_tmp"; err 'image copy failed' 4; }
+chmod 600 "$image_tmp" && mv -f "$image_tmp" "$BG_FILE" || { rm -f "$image_tmp"; err 'cannot install background image' 5; }
+atomic_properties set "$opacity" "$blur" "$animation"
+reload
+printf 'Background set and settings reloaded\n'

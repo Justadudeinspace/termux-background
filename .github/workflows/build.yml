@@ -1,298 +1,81 @@
-name: Build & Release Termux Background
+name: Android and Debian builds
 
 on:
   push:
     branches: [main]
+    tags: ['v*']
+  pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  calculate-version:
+  build:
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.calc-version.outputs.version }}
-      tag_name: ${{ steps.calc-version.outputs.tag_name }}
     steps:
-      - name: 🧾 Checkout repository with tags
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
-          fetch-depth: 0
-          ref: ${{ github.ref }}
-
-      - name: 🔢 Calculate next semantic version
-        id: calc-version
-        run: |
-          set -euo pipefail
-          latest_tag=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
-          
-          if [ -z "$latest_tag" ]; then
-            new_version="1.0.0"
-            echo "📌 No existing tag found. Starting at version 1.0.0"
-          else
-            version_number="${latest_tag#v}"
-            IFS='.' read -r major minor patch <<< "$version_number"
-            new_patch=$((patch + 1))
-            new_version="$major.$minor.$new_patch"
-            echo "📌 Incremented $latest_tag to $new_version"
-          fi
-          
-          echo "version=$new_version" >> "$GITHUB_OUTPUT"
-          echo "tag_name=v$new_version" >> "$GITHUB_OUTPUT"
-
-  build-artifacts:
-    needs: calculate-version
-    runs-on: ubuntu-latest
-    outputs:
-      deb_path: ${{ steps.artifact-paths.outputs.deb_path }}
-      debug_apk: ${{ steps.artifact-paths.outputs.debug_apk }}
-      release_apk: ${{ steps.artifact-paths.outputs.release_apk }}
-    
-    steps:
-      - name: 🧾 Checkout code
-        uses: actions/checkout@v4
-
-      - name: ☕ Setup Java for Android
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
-
-      - name: 📦 Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
         with:
-          packages: "build-tools;34.0.0 platform-tools platforms;android-34 cmdline-tools;latest"
-
-      # ✅ PATCH 1: Detect Gradle wrapper location (fixed output)
-      - name: 🔎 Detect Gradle wrapper location (repo may not be root)
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and verify Android app
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          GRADLEW="$(find . -maxdepth 4 -type f -name gradlew -print -quit || true)"
-          if [ -z "$GRADLEW" ]; then
-            echo "❌ gradlew not found (searched maxdepth=4)."
-            echo "Repo root contents:"
-            ls -la
-            exit 1
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then export BUILD_VERSION="${GITHUB_REF_NAME#v}"; else export BUILD_VERSION="$(cat VERSION)"; fi
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            if [[ -z "$ANDROID_KEYSTORE_BASE64" || -z "$ANDROID_KEYSTORE_PASSWORD" || -z "$ANDROID_KEY_ALIAS" || -z "$ANDROID_KEY_PASSWORD" ]]; then
+              echo "Tagged releases require all Android signing secrets." >&2
+              exit 1
+            fi
           fi
-          GRADLE_DIR="$(cd "$(dirname "$GRADLEW")" && pwd)"
-          echo "✅ gradlew: $GRADLE_DIR/gradlew"
-          echo "✅ gradle dir: $GRADLE_DIR"
-          echo "GRADLE_DIR=$GRADLE_DIR" >> "$GITHUB_ENV"
-
-      # ✅ PATCH 2: Make gradlew executable (using absolute path)
-      - name: 🔧 Make gradlew executable
-        run: chmod +x "$GRADLE_DIR/gradlew"
-
-      # ✅ PATCH 3: Clean and build APKs (using ./gradlew after cd)
-      - name: 🏗 Clean and build APKs
-        run: |
-          set -euo pipefail
-          cd "$GRADLE_DIR"
-
-          ./gradlew --version
-          ./gradlew clean
-          ./gradlew assembleDebug || true
-
-          echo "Attempting release build..."
-          ./gradlew assembleRelease || echo "⚠ Release build failed (likely signing). Continuing..."
-
-          echo "Available APKs:"
-          find . -path "*/build/outputs/apk/*/*.apk" -print || true
-
-          # Ensure at least one APK exists anywhere under build/outputs/apk
-          if [ -z "$(find . -path '*/build/outputs/apk/*/*.apk' -print -quit)" ]; then
-            echo "❌ No APK files found under any */build/outputs/apk/*/"
-            echo "Dumping relevant directories:"
-            find . -maxdepth 4 -type d -name outputs -o -name build || true
-            exit 1
+          if [[ -n "$ANDROID_KEYSTORE_BASE64" ]]; then
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+            export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.keystore"
           fi
-
-      - name: 📦 Create .deb package structure
+          ./tests/cli_test.sh
+          ./gradlew clean lint test assembleDebug assembleRelease
+          cp app/build/outputs/apk/debug/app-debug.apk "termux-background-${BUILD_VERSION}-debug.apk"
+          release_apk="$(find app/build/outputs/apk/release -name '*.apk' -print -quit)"
+          test -n "$release_apk"
+          cp "$release_apk" "termux-background-${BUILD_VERSION}.apk"
+      - name: Build Debian package and checksums
         run: |
           set -euo pipefail
-          rm -rf package
-          mkdir -p package/DEBIAN
-          mkdir -p package/data/data/com.termux/files/usr/bin
-          mkdir -p package/data/data/com.termux/files/usr/share/termux-background/
-
-      - name: 📝 Create DEBIAN/control file
-        run: |
-          set -euo pipefail
-          cat > package/DEBIAN/control << EOF
-Package: termux-background
-Version: ${{ needs.calculate-version.outputs.version }}
-Architecture: all
-Maintainer: Justadudeinspace
-Description: Termux background manager
- A simple utility to set background images in Termux.
-EOF
-
-      - name: ⚙️ Create main executable script
-        run: |
-          set -euo pipefail
-          cat > package/data/data/com.termux/files/usr/bin/termux-background << 'EOF'
-#!/data/data/com.termux/files/usr/bin/bash
-
-TERMUX_DIR="$HOME/.termux"
-PROP_FILE="$TERMUX_DIR/termux.properties"
-BG_FILE="$TERMUX_DIR/background.png"
-
-case "$1" in
-  -h|--help)
-    echo "Usage: termux-background <image.png>"
-    echo "       termux-background --remove"
-    echo "       termux-background --status"
-    exit 0
-    ;;
-  --remove)
-    rm -f "$BG_FILE"
-    echo "✓ Background removed"
-    exit 0
-    ;;
-  --status)
-    if [ -f "$BG_FILE" ]; then
-      echo "Background set: $BG_FILE"
-    else
-      echo "No background set"
-    fi
-    exit 0
-    ;;
-esac
-
-if [ -z "$1" ]; then
-  echo "Error: No image specified"
-  echo "Usage: termux-background <image.png>"
-  exit 1
-fi
-
-if [ ! -f "$1" ]; then
-  echo "Error: File not found: $1"
-  exit 1
-fi
-
-mkdir -p "$TERMUX_DIR"
-cp "$1" "$BG_FILE"
-echo "✓ Background set to: $BG_FILE"
-
-if [ ! -f "$PROP_FILE" ] || ! grep -q "background=" "$PROP_FILE"; then
-  {
-    echo "background=background.png"
-    echo "background.opacity=0.8"
-    echo "background.animation=scroll"
-  } >> "$PROP_FILE"
-  echo "✓ Added background settings to termux.properties"
-fi
-
-echo "ℹ Run 'termux-reload-settings' to apply changes"
-EOF
-          
-          chmod 755 package/data/data/com.termux/files/usr/bin/termux-background
-
-      - name: 🧰 Install dpkg-deb tooling
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y dpkg-dev
-
-      - name: 📦 Build .deb package
-        run: |
-          set -euo pipefail
-          dpkg-deb --build -Zgzip package "termux-background_${{ needs.calculate-version.outputs.version }}_all.deb"
-
-      - name: 📊 Collect artifact paths
-        id: artifact-paths
-        run: |
-          set -euo pipefail
-          DEB_FILE="termux-background_${{ needs.calculate-version.outputs.version }}_all.deb"
-          
-          # Find APKs in the Gradle directory structure
-          DEBUG_APK=$(find "$GRADLE_DIR" -path "*/build/outputs/apk/debug/*.apk" 2>/dev/null | head -1 || echo "")
-          RELEASE_APK=$(find "$GRADLE_DIR" -path "*/build/outputs/apk/release/*.apk" 2>/dev/null | head -1 || echo "")
-          
-          echo "deb_path=$DEB_FILE" >> $GITHUB_OUTPUT
-          echo "debug_apk=$DEBUG_APK" >> $GITHUB_OUTPUT
-          echo "release_apk=$RELEASE_APK" >> $GITHUB_OUTPUT
-          
-          echo "📦 Final artifacts:"
-          echo "  - $DEB_FILE"
-          [ -n "$DEBUG_APK" ] && echo "  - $DEBUG_APK"
-          [ -n "$RELEASE_APK" ] && echo "  - $RELEASE_APK"
-
-      - name: ⬆️ Upload build artifacts
-        uses: actions/upload-artifact@v4
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="$(cat VERSION)"; fi
+          BUILD_VERSION="$VERSION" ./build-deb.sh
+          sha256sum "termux-background-$VERSION-debug.apk" "termux-background-$VERSION.apk" > SHA256SUMS
+          sha256sum "termux-background_${VERSION}_all.deb" >> SHA256SUMS
+      - uses: actions/upload-artifact@v4
         with:
-          name: github-artifacts
+          name: termux-background-${{ github.sha }}
           if-no-files-found: error
           path: |
+            termux-background-*.apk
             termux-background_*.deb
-            **/build/outputs/apk/**/*.apk
+            SHA256SUMS
 
-  create-release:
-    needs: [calculate-version, build-artifacts]
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release]'))
+  release:
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: build
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: write
     steps:
-      - name: 🧾 Checkout repository (with same commit as build)
-        uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0
-          ref: ${{ github.sha }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 🏷️ Create git tag (with safety check)
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          
-          TAG_NAME="${{ needs.calculate-version.outputs.tag_name }}"
-          
-          # Safety check: don't delete existing tags - abort instead
-          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-            echo "❌ Tag $TAG_NAME already exists. Aborting to avoid rewriting releases."
-            echo "If you need a new release, create a new commit or manually delete the tag."
-            exit 1
-          fi
-          
-          git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
-          git push origin "$TAG_NAME"
-          echo "✅ Tag $TAG_NAME created and pushed"
-
-      - name: ⏳ Wait for tag to propagate (with retry)
-        run: |
-          set -euo pipefail
-          TAG_NAME="${{ needs.calculate-version.outputs.tag_name }}"
-          echo "Waiting for tag $TAG_NAME to propagate..."
-          
-          for i in 1 2 3 4 5; do
-            echo "Attempt $i/5: Checking if tag exists on remote..."
-            if git ls-remote --tags origin "$TAG_NAME" | grep -q .; then
-              echo "✅ Tag $TAG_NAME found on remote"
-              break
-            fi
-            if [ $i -eq 5 ]; then
-              echo "⚠ Tag $TAG_NAME not found on remote after $i attempts"
-              echo "Continuing anyway - release may fail if tag isn't found"
-            else
-              sleep 3
-            fi
-          done
-
-      - name: 📥 Download artifacts from build job
-        uses: actions/download-artifact@v4
+          name: termux-background-${{ github.sha }}
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
         with:
-          name: github-artifacts
-          path: ./artifacts/
-
-      - name: 🚀 Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.calculate-version.outputs.tag_name }}
-          name: "Termux Background ${{ needs.calculate-version.outputs.tag_name }}"
+          files: artifacts/**
           generate_release_notes: true
-          files: |
-            artifacts/**
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

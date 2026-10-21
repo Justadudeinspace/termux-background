@@ -1,26 +1,7 @@
-# 📦 Termux Background v1.0.0 Release Notes
+# Termux Background 1.1.0
 
-# 📦 Termux-Background v1.0.0 Release Draft
+This release hardens the Termux CLI and Debian package. The CLI validates PNG/JPEG input and option values, preserves unrelated `termux.properties` lines, atomically replaces its managed configuration, reloads settings, and reports reload failures.
 
-### 🚀 Features
-- Set background images in Termux via a plugin APK
-- Native Termux `.termux/background.png` and `termux.properties` support
-- Image selector UI with preview
-- Fully offline compatible
-- Auto-launch support via `.shortcuts/`
+The Android companion detects Termux dependencies and previews a selected image. Android's app sandbox prevents direct access to Termux's private home, so use `termux-background` inside Termux to apply and reset settings.
 
-### 📲 Installation
-Install the APK manually or via `.deb` package using:
-```bash
-pkg install ./termux-background_1.0.0_all.deb
-```
-
-### ✅ Compatibility
-- ✅ Works on all Android architectures: `armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64`
-- ✅ Tested on MediaTek, Qualcomm Snapdragon, Unisoc chipsets
-- ✅ Requires: Termux App + Termux:API
-
-### 🧪 Tested On
-- Android 7 to 14+
-- Termux v0.119.0+
-- Works with all major Termux forks and environments
+See [README.md](README.md) for installation, usage, build, and secure signing instructions. Android APK builds still require validation with the Android SDK and on a physical device.

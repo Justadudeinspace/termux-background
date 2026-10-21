@@ -2,49 +2,40 @@ plugins {
     id 'com.android.application'
 }
 
-import java.util.Properties
-def keystoreProperties = new Properties()
-keystoreProperties.load(new FileInputStream(rootProject.file("keystore.properties")))
+def releaseStorePath = System.getenv('ANDROID_KEYSTORE_PATH')
+def releaseStorePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+def releaseKeyAlias = System.getenv('ANDROID_KEY_ALIAS')
+def releaseKeyPassword = System.getenv('ANDROID_KEY_PASSWORD')
+def releaseSigningConfigured = [releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it }
 
 android {
     namespace 'com.termuxbackground'
-    compileSdkVersion 34
+    compileSdk 35
     defaultConfig {
         applicationId 'com.termuxbackground'
         minSdkVersion 24
-        targetSdkVersion 34
-        versionCode 1
-        versionName System.getenv("BUILD_VERSION") ?: "1.0.0"
-    }
-    signingConfigs {
-        release {
-            storeFile file(keystoreProperties['storeFile'])
-            storePassword keystoreProperties['storePassword']
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-        }
+        targetSdk 35
+        versionCode 2
+        versionName System.getenv("BUILD_VERSION") ?: rootProject.file("VERSION").text.trim()
     }
     buildTypes {
         release {
-            signingConfig signingConfigs.release
-            minifyEnabled false
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.create('release') {
+                    storeFile file(releaseStorePath)
+                    storePassword releaseStorePassword
+                    keyAlias releaseKeyAlias
+                    keyPassword releaseKeyPassword
+                }
+            }
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
-        debug {
-            signingConfig signingConfigs.release
-        }
-    }
-}
-
-configurations.all {
-    resolutionStrategy {
-        force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
+        debug { }
     }
 }
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'androidx.core:core-ktx:1.12.0'
 }

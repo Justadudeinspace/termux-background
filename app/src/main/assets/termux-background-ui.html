@@ -4,15 +4,20 @@
   <meta charset="UTF-8" />
   <title>Termux Background</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
-      background-color: #0d0d0d;
-      color: #eee;
-      padding: 1.5rem;
-      font-family: 'Segoe UI', sans-serif;
+      background: #101318; color: #f3f4f6; padding: 1rem;
+      font: 16px system-ui, sans-serif; max-width: 720px; margin: auto;
     }
+    button, input { font: inherit; }
+    button { padding: .65rem .8rem; border: 0; border-radius: .45rem; color: white; background: #374151; }
+    button:disabled { opacity: .55; }
+    label { display: block; margin: .8rem 0 .35rem; }
+    #imageInput { width: calc(100% - 1rem); }
+    #setBackgroundBtn { background: #2563eb; }
+    #resetBtn { background: #991b1b; }
+    #statusPanel { padding: .8rem; border: 1px solid #374151; border-radius: .6rem; }
+    #statusDetails { color: #d1d5db; }
     .preview {
       margin-top: 1rem;
       width: 100%;
@@ -36,7 +41,6 @@
 </head>
 <body>
   <h1 class="text-xl font-bold mb-4 flex items-center space-x-2">
-    <i class="fas fa-image text-blue-400"></i>
     <span>Termux Background Picker</span>
   </h1>
 
@@ -75,7 +79,7 @@
   </div>
 
   <button id="setBackgroundBtn" disabled class="mt-6 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold rounded shadow">
-    <i class="fas fa-check-circle mr-1"></i> Apply Background
+    Apply Background
   </button>
 
   <div id="statusMsg" class="mt-4 text-sm text-green-400"></div>
@@ -153,9 +157,9 @@
         if (!status.termuxInstalled) {
           setState('Blocked: Install Termux', 'Termux is required.', true, true);
         } else if (!status.termuxApiInstalled) {
-          setState('Blocked: Install Termux:API', 'Install the Termux:API add-on to enable Apply.', true, true);
+          setState('Termux:API not installed', 'The companion app can check Termux:API, but Android isolates Termux configuration from this app.', true, true);
         } else if (!status.canRunCommands) {
-          setState('Blocked', 'Termux:API broadcast not available.', true, true);
+          setState('Use the Termux CLI to apply changes', 'Android app sandboxing prevents this app from writing Termux private configuration. Run termux-background inside Termux.', true, true);
         } else {
           setState('Ready', 'Termux + Termux:API detected. Select an image and press Apply.', false, false);
         }
