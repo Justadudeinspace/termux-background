@@ -1,15 +1,48 @@
 #!/data/data/com.termux/files/usr/bin/bash
-set -u
+set -euo pipefail
+umask 077
+transfer_tmp=""
+image_tmp=""; properties_tmp=""
+cleanup() {
+  local rc=$? candidate
+  for candidate in "$transfer_tmp" "$image_tmp" "$properties_tmp"; do
+    if [[ -n "$candidate" ]] && ! rm -f -- "$candidate"; then
+      printf 'termux-background: temporary file cleanup failed\n' >&2
+      [[ $rc != 0 ]] || rc=7
+    fi
+  done
+  exit "$rc"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM HUP
 VERSION="${TERMUX_BACKGROUND_VERSION:-1.1.0}"
 CONFIG_DIR="${TERMUX_BACKGROUND_CONFIG_DIR:-$HOME/.termux}"
 PROP_FILE="$CONFIG_DIR/termux.properties"
 BG_FILE="$CONFIG_DIR/background.png"
+backend=legacy
+if [[ "${1:-}" == --backend ]]; then
+  [[ $# -ge 3 && "$2" == monet ]] || { printf 'Expected --backend monet COMMAND\n' >&2; exit 2; }
+  backend=monet; shift 2
+  BG_FILE="$CONFIG_DIR/background/background.jpeg"
+fi
+managed_background() {
+  if [[ "$backend" == monet ]]; then
+    [[ -f "$CONFIG_DIR/.termux-background-monet" && -f "$BG_FILE" ]]
+  else
+    [[ -f "$PROP_FILE" ]] && grep -q '^background=background.png[[:space:]]*$' "$PROP_FILE" && [[ -f "$BG_FILE" ]]
+  fi
+}
 
 usage() {
   cat <<USAGE
 Usage:
-  termux-background set --image PATH [--opacity 0..1] [--blur true|false] [--animation none|scroll]
-  termux-background remove|reset|status|reload|help|version
+  termux-background [--backend monet] set --image PATH [--opacity 0..1] [--blur true|false] [--animation none|scroll]
+  termux-background set --image-stdin [options]  # bounded base64 PNG/JPEG on stdin
+  termux-background [--backend monet] remove|reset|status|probe|reload|help|version
+
+The monet backend uses Termux Monet wallpaper paths and a black overlay for
+opacity. Enable Background Image in Monet settings manually. Blur/scroll are
+unsupported by this backend. The default legacy keys require a compatible fork.
 
 set copies a PNG or JPEG image to ~/.termux/background.png, updates only
 background.* properties, then reloads Termux settings. reset/remove removes
@@ -21,28 +54,36 @@ valid_opacity() { [[ "$1" =~ ^([0-1](\.[0-9]+)?|\.[0-9]+)$ ]] && awk -v n="$1" '
 
 atomic_properties() {
   local mode="$1" opacity="${2:-}" blur="${3:-}" animation="${4:-}" tmp line key
-  mkdir -p "$CONFIG_DIR" || err "cannot create $CONFIG_DIR" 4
+  mkdir -p "$CONFIG_DIR" || err "cannot create $CONFIG_DIR" 5
   tmp=$(mktemp "$CONFIG_DIR/.termux.properties.XXXXXX") || err 'cannot create temporary config' 5
+  properties_tmp="$tmp"
   if [[ -f "$PROP_FILE" ]]; then
     while IFS= read -r line || [[ -n "$line" ]]; do
       key="${line%%=*}"
-      if [[ "$line" == *=* && ( "$key" == background || "$key" == background.opacity || "$key" == background.blur || "$key" == background.animation ) ]]; then
+      key="${key//[[:space:]]/}"
+      if [[ "$line" == *=* ]] && { [[ "$backend" == monet && "$key" == background-overlay-color ]] ||
+           [[ "$backend" == legacy && ( "$key" == background || "$key" == background.opacity || "$key" == background.blur || "$key" == background.animation ) ]]; }; then
         continue
       fi
-      printf '%s\n' "$line" >> "$tmp"
+      printf '%s\n' "$line" >> "$tmp" || err 'cannot write temporary properties' 5
     done < "$PROP_FILE" || { rm -f "$tmp"; err 'cannot read termux.properties' 5; }
   elif [[ "$mode" == reset ]]; then
     rm -f "$tmp"
     return 0
   fi
   if [[ "$mode" == set ]]; then
-    printf '\n# Managed by termux-background\nbackground=background.png\nbackground.opacity=%s\nbackground.blur=%s\nbackground.animation=%s\n' "$opacity" "$blur" "$animation" >> "$tmp"
+    if [[ "$backend" == monet ]]; then
+      overlay=$(awk -v opacity="$opacity" 'BEGIN {printf "#%02X000000", int((1-opacity)*255+0.5)}') || err 'cannot calculate overlay' 2
+      printf '\n# Managed by termux-background (Monet)\nbackground-overlay-color=%s\n' "$overlay" >> "$tmp" || err 'cannot write Monet overlay' 5
+    else
+    printf '\n# Managed by termux-background\nbackground=background.png\nbackground.opacity=%s\nbackground.blur=%s\nbackground.animation=%s\n' "$opacity" "$blur" "$animation" >> "$tmp" || err 'cannot write background properties' 5
+    fi
   fi
   chmod 600 "$tmp" && mv -f "$tmp" "$PROP_FILE" || { rm -f "$tmp"; err 'cannot replace termux.properties' 5; }
 }
 reload() {
   command -v termux-reload-settings >/dev/null 2>&1 || err 'termux-reload-settings is unavailable' 3
-  termux-reload-settings || err 'settings were written, but Termux reload failed' 5
+  termux-reload-settings || err 'settings were written, but Termux reload failed' 6
 }
 
 [[ $# -gt 0 ]] || { usage >&2; exit 2; }
@@ -50,8 +91,31 @@ command_name="$1"; shift
 case "$command_name" in
   help|-h|--help) usage; exit 0 ;;
   version|--version|-V) printf '%s\n' "$VERSION"; exit 0 ;;
+  probe)
+    [[ $# == 0 ]] || err "probe takes no arguments" 2
+    printf 'TBG_PROTOCOL=1\nBACKEND=%s\n' "$backend"
+    command -v termux-reload-settings >/dev/null 2>&1 || err "termux-tools missing" 3
+    for dependency in file base64 head awk mktemp cp chmod mv rm wc; do
+      command -v "$dependency" >/dev/null 2>&1 || err "required dependency unavailable: $dependency" 8
+    done
+    mkdir -p "$CONFIG_DIR" || err "configuration unavailable" 5
+    [[ -w "$CONFIG_DIR" ]] || err "configuration not writable" 5
+    transfer_tmp=$(mktemp "$CONFIG_DIR/.transfer.XXXXXX") || err 'cannot create diagnostic temporary file' 4
+    encoded=$(head -c 163841) || err 'cannot read diagnostic stdin' 4
+    (( ${#encoded} <= 163840 )) || err 'diagnostic transfer exceeds limit' 4
+    printf '%s' "$encoded" | base64 -d > "$transfer_tmp" || err 'diagnostic transfer failed' 4
+    [[ "$(cat "$transfer_tmp")" == 'TBG_TRANSFER=1' ]] || err 'diagnostic transfer mismatch' 4
+    reload
+    printf 'CONFIG=WRITABLE\nIMAGE_TRANSFER=VERIFIED\nRELOAD=COMPLETED\n'
+    if managed_background; then
+      printf 'BACKGROUND=SET\n'
+    else
+      printf 'BACKGROUND=NONE\n'
+    fi
+    exit 0 ;;
   status)
-    if [[ -f "$PROP_FILE" ]] && grep -q '^background=background.png[[:space:]]*$' "$PROP_FILE" && [[ -f "$BG_FILE" ]]; then
+    printf 'TBG_PROTOCOL=1\n'
+    if managed_background; then
       printf 'Background set: %s\n' "$BG_FILE"
     else
       printf 'No managed background configured\n'
@@ -59,8 +123,18 @@ case "$command_name" in
     exit 0 ;;
   reload) reload; exit 0 ;;
   remove|reset)
+    if [[ "$backend" == monet && ! -f "$CONFIG_DIR/.termux-background-monet" ]]; then
+      printf 'No managed Monet background; nothing changed\n'
+      exit 0
+    fi
     atomic_properties reset
+    if [[ "$backend" == monet ]]; then
+      if [[ -f "$CONFIG_DIR/.termux-background-monet" ]]; then
+        rm -f -- "$BG_FILE" "$CONFIG_DIR/background/background_portrait.jpeg" "$CONFIG_DIR/background/background_landscape.jpeg" "$CONFIG_DIR/.termux-background-monet" || err 'cannot remove Monet wallpaper' 5
+      fi
+    else
     rm -f "$BG_FILE" || err 'cannot remove managed background image' 5
+    fi
     reload
     printf 'Background removed and settings reloaded\n'
     exit 0 ;;
@@ -68,9 +142,11 @@ case "$command_name" in
   *) printf 'Unknown command: %s\n' "$command_name" >&2; usage >&2; exit 2 ;;
 esac
 
+stdin_image=false
 image=''; opacity='0.8'; blur='false'; animation='none'
 while (($#)); do
   case "$1" in
+    --image-stdin) stdin_image=true; shift ;;
     --image) (($# >= 2)) || err '--image requires a path' 2; image="$2"; shift 2 ;;
     --opacity) (($# >= 2)) || err '--opacity requires a value' 2; opacity="$2"; shift 2 ;;
     --blur) (($# >= 2)) || err '--blur requires true or false' 2; blur="$2"; shift 2 ;;
@@ -78,6 +154,16 @@ while (($#)); do
     *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
   esac
 done
+if [[ "$stdin_image" == true ]]; then
+  [[ -z "$image" ]] || err 'choose one image source' 2
+  mkdir -p "$CONFIG_DIR" || err 'cannot create config directory' 5
+  transfer_tmp=$(mktemp "$CONFIG_DIR/.transfer.XXXXXX") || err 'cannot create transfer file' 4
+  # Bound stdin before decoding: 120 KiB JPEG -> 160 KiB base64.
+  encoded=$(head -c 163841) || err 'stdin transfer failed' 4
+  (( ${#encoded} <= 163840 )) || err 'transfer exceeds limit' 4
+  printf '%s' "$encoded" | base64 -d > "$transfer_tmp" || err 'invalid base64 transfer' 4
+  image="$transfer_tmp"
+fi
 [[ -n "$image" ]] || err 'set requires --image PATH' 2
 [[ -f "$image" && -r "$image" ]] || err "image is missing or unreadable: $image" 4
 image_size=$(wc -c < "$image") || err 'cannot read image size' 4
@@ -86,10 +172,19 @@ file "$image" | grep -Eqi 'PNG image data|JPEG image data' || err 'image must be
 valid_opacity "$opacity" || err 'opacity must be between 0 and 1' 2
 [[ "$blur" == true || "$blur" == false ]] || err 'blur must be true or false' 2
 [[ "$animation" == none || "$animation" == scroll ]] || err 'animation must be none or scroll' 2
-mkdir -p "$CONFIG_DIR" || err "cannot create $CONFIG_DIR" 4
+if [[ "$backend" == monet ]]; then
+  [[ "$blur" == false && "$animation" == none ]] || err 'Monet backend does not support blur or scroll animation' 2
+  mkdir -p "$CONFIG_DIR/background" || err 'cannot create Monet background directory' 5
+fi
+mkdir -p "$CONFIG_DIR" || err "cannot create $CONFIG_DIR" 5
 image_tmp=$(mktemp "$CONFIG_DIR/.background.XXXXXX") || err 'cannot create image temporary file' 5
 cp -- "$image" "$image_tmp" || { rm -f "$image_tmp"; err 'image copy failed' 4; }
 chmod 600 "$image_tmp" && mv -f "$image_tmp" "$BG_FILE" || { rm -f "$image_tmp"; err 'cannot install background image' 5; }
+if [[ "$backend" == monet ]]; then
+  # Monet regenerates orientation caches from the original on reload/resume.
+  rm -f -- "$CONFIG_DIR/background/background_portrait.jpeg" "$CONFIG_DIR/background/background_landscape.jpeg" || err 'cannot invalidate Monet wallpaper cache' 5
+  printf 'monet\n' > "$CONFIG_DIR/.termux-background-monet" || err 'cannot write Monet ownership marker' 5
+fi
 atomic_properties set "$opacity" "$blur" "$animation"
 reload
 printf 'Background set and settings reloaded\n'

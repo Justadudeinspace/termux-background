@@ -47,12 +47,16 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk "termux-background-${BUILD_VERSION}-debug.apk"
           release_apk="$(find app/build/outputs/apk/release -name '*.apk' -print -quit)"
           test -n "$release_apk"
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$release_apk"
+          fi
           cp "$release_apk" "termux-background-${BUILD_VERSION}.apk"
       - name: Build Debian package and checksums
         run: |
           set -euo pipefail
           if [[ "$GITHUB_REF_TYPE" == tag ]]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="$(cat VERSION)"; fi
           BUILD_VERSION="$VERSION" ./build-deb.sh
+          BUILD_VERSION="$VERSION" ./tests/package_test.sh
           sha256sum "termux-background-$VERSION-debug.apk" "termux-background-$VERSION.apk" > SHA256SUMS
           sha256sum "termux-background_${VERSION}_all.deb" >> SHA256SUMS
       - uses: actions/upload-artifact@v4

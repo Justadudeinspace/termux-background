@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; frame-src 'none'">
   <title>Termux Background</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
@@ -12,6 +13,10 @@
     button, input { font: inherit; }
     button { padding: .65rem .8rem; border: 0; border-radius: .45rem; color: white; background: #374151; }
     button:disabled { opacity: .55; }
+    button { margin: .25rem 0; min-height: 48px; }
+    input[type=range] { width: 100%; min-height: 48px; }
+    :focus-visible { outline: 3px solid #93c5fd; }
+    @media (prefers-reduced-motion: reduce) { .animate-scroll { animation: none; } }
     label { display: block; margin: .8rem 0 .35rem; }
     #imageInput { width: calc(100% - 1rem); }
     #setBackgroundBtn { background: #2563eb; }
@@ -57,24 +62,28 @@
     </div>
   </div>
 
-  <label class="block mb-2">Select Background Image:</label>
+  <p>Requires Termux Monet with Background Image enabled under Settings → Termux → Termux Style. The companion uses Monet’s documented wallpaper interface. Upstream Termux does not support wallpaper rendering. Device qualification is still required.</p>
+  <details><summary>First-run setup</summary><p>Install and open Termux Monet with RUN_COMMAND support (Termux API 0.109 or newer). Enable Background Image in its settings before Apply (and again after Reset if Monet disables it). Install the DEB from this release inside Termux: <code>dpkg -i ./termux-background_1.1.0_all.deb</code> (install dependencies with <code>pkg install termux-tools file coreutils</code>). Add <code>allow-external-apps=true</code> to <code>~/.termux/termux.properties</code>, then run <code>termux-reload-settings</code>. This enables authorized external apps to execute commands with your Termux privileges. Authorize this app, then run diagnostics. Termux:API is not required. No code is downloaded or installed automatically.</p></details>
+  <button id="authorizeBtn">Authorize</button> <button id="copyBtn">Copy diagnostics</button> <button id="reloadBtn">Reload</button> <button id="recoverBtn">Recover interrupted operation</button>
+  <p>Images: PNG/JPEG, up to 20 MiB and 40 megapixels. Transfers use a resized JPEG up to 120 KiB; preview shows the prepared image. Opacity uses a black wallpaper overlay. Blur and scroll animation are unsupported by Monet.</p>
+  <label for="imageInput" class="block mb-2">Select Background Image:</label>
   <input id="imageInput" type="file" accept="image/*" class="mb-4 bg-gray-800 text-white border border-gray-600 rounded px-3 py-2 w-full">
 
   <div id="previewImage" class="preview"></div>
 
   <div class="mt-4">
-    <label class="block">Opacity: <span id="opacityValue">0.8</span></label>
+    <label for="opacitySlider" class="block">Opacity: <span id="opacityValue">0.8</span></label>
     <input type="range" id="opacitySlider" min="0.0" max="1" step="0.01" value="0.8" class="w-full">
   </div>
 
   <div class="flex items-center mt-4 space-x-6">
     <label class="flex items-center">
-      <input type="checkbox" id="toggleAnimation" class="mr-2">
-      Animate
+      <input type="checkbox" id="toggleAnimation" disabled class="mr-2">
+      Animate (unsupported)
     </label>
     <label class="flex items-center">
-      <input type="checkbox" id="toggleBlur" class="mr-2">
-      Blur
+      <input type="checkbox" id="toggleBlur" disabled class="mr-2">
+      Blur (unsupported)
     </label>
   </div>
 
@@ -82,7 +91,7 @@
     Apply Background
   </button>
 
-  <div id="statusMsg" class="mt-4 text-sm text-green-400"></div>
+  <div role="status" aria-live="polite" id="statusMsg" class="mt-4 text-sm text-green-400"></div>
 
   <style>
     #toast {
@@ -103,174 +112,57 @@
   <div id="toast"></div>
 
   <script>
-    const imageInput = document.getElementById('imageInput');
-    const previewImage = document.getElementById('previewImage');
-    const setBackgroundBtn = document.getElementById('setBackgroundBtn');
-    const toggleAnimation = document.getElementById('toggleAnimation');
-    const opacitySlider = document.getElementById('opacitySlider');
-    const toggleBlur = document.getElementById('toggleBlur');
-    const opacityValue = document.getElementById('opacityValue');
-    const statusMsg = document.getElementById('statusMsg');
-    const statusLabel = document.getElementById('statusLabel');
-    const statusDetails = document.getElementById('statusDetails');
-    const recheckBtn = document.getElementById('recheckBtn');
-    const resetBtn = document.getElementById('resetBtn');
-
+    const $ = id => document.getElementById(id);
     let selectedFile = null;
-    let selectedUri = null;
-    let lastStatus = { canRunCommands: false };
-
-    function showToast(msg, isError = false) {
-      const toast = document.getElementById('toast');
-      toast.textContent = msg;
-      toast.style.display = 'block';
-      toast.style.backgroundColor = isError ? '#7f1d1d' : '#1f2937';
-      setTimeout(() => { toast.style.display = 'none'; }, 3000);
-    }
-
+    let lastStatus = {ready:false,busy:false};
     function updatePreview() {
-      if (!selectedFile) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        previewImage.style.backgroundImage = `url('${e.target.result}')`;
-        previewImage.style.opacity = opacitySlider.value;
-      };
-      reader.readAsDataURL(selectedFile);
+      $('previewImage').style.opacity = $('opacitySlider').value;
+      $('opacityValue').textContent = $('opacitySlider').value;
+      $('previewImage').style.filter = $('toggleBlur').checked ? 'blur(5px)' : 'none';
+      $('previewImage').classList.toggle('animate-scroll', $('toggleAnimation').checked);
     }
-
-    function setState(message, details = '', blocked = false, isError = false) {
-      statusLabel.textContent = message;
-      statusDetails.textContent = details;
-      statusMsg.textContent = details;
-      statusMsg.className = 'mt-4 text-sm ' + (isError ? 'text-red-400' : 'text-green-400');
-      setBackgroundBtn.disabled = blocked || !selectedUri;
+    function render(s) {
+      lastStatus = s;
+      $('statusLabel').textContent = s.busy ? 'Operation in progress' : s.ready ? 'Ready' : 'Setup / diagnostics required';
+      $('statusDetails').textContent = 'Termux: ' + (s.termuxInstalled ? '✓' : 'missing') +
+        ' · Interface: ' + (s.commandInterface ? '✓' : 'unavailable') +
+        ' · Permission: ' + (s.permission ? '✓' : 'required') + ' · CLI / Image transfer / Configuration / Reload: ' + (s.selfTestPassed ? '✓' : 'run diagnostics') + ' · ' + (s.configuration || '');
+      const message = (s.code || '') + ': ' + (s.message || '');
+      if ($('statusMsg').textContent !== message) $('statusMsg').textContent = message;
+      $('setBackgroundBtn').disabled = !s.ready || !s.imageSelected || !selectedFile;
+      $('resetBtn').disabled = !s.ready;
+      $('reloadBtn').disabled = !s.ready;
+      $('recheckBtn').disabled = !!s.busy;
+      $('authorizeBtn').disabled = !!s.busy || !s.termuxInstalled || !!s.permission;
+      $('imageInput').disabled = !!s.busy;
     }
-
     function refreshStatus() {
-      if (typeof Android === 'undefined' || !Android.getStatus) {
-        setState('Running in browser preview', 'Android bridge not available', true, true);
-        return;
-      }
-      try {
-        const status = JSON.parse(Android.getStatus());
-        lastStatus = status;
-        if (!status.termuxInstalled) {
-          setState('Blocked: Install Termux', 'Termux is required.', true, true);
-        } else if (!status.termuxApiInstalled) {
-          setState('Termux:API not installed', 'The companion app can check Termux:API, but Android isolates Termux configuration from this app.', true, true);
-        } else if (!status.canRunCommands) {
-          setState('Use the Termux CLI to apply changes', 'Android app sandboxing prevents this app from writing Termux private configuration. Run termux-background inside Termux.', true, true);
-        } else {
-          setState('Ready', 'Termux + Termux:API detected. Select an image and press Apply.', false, false);
-        }
-      } catch (err) {
-        setState('Error', 'Could not read status: ' + err.message, true, true);
-      }
+      if (typeof Android === 'undefined') { $('statusLabel').textContent = 'Android app required'; return; }
+      try { render(JSON.parse(Android.getStatus())); } catch (_) { $('statusMsg').textContent = 'Invalid native response'; }
     }
-
-    function handleResult(raw) {
-      let res = {};
-      try {
-        res = JSON.parse(raw);
-      } catch (err) {
-        setState('Error', 'Invalid response: ' + err.message, true, true);
-        showToast('Invalid response from Android', true);
-        return;
-      }
-      const blocked = !!res.blocked;
-      const ok = !!res.ok;
-      const msg = res.message || '';
-      setState(ok ? 'Applied' : blocked ? 'Blocked' : 'Error', msg, blocked || !lastStatus.canRunCommands, !ok);
-      showToast(msg, !ok);
-    }
-
-    imageInput.addEventListener('change', (event) => {
-      const file = event.target.files[0];
-      if (!file) {
-        selectedFile = null;
-        selectedUri = null;
-        setBackgroundBtn.disabled = true;
-        previewImage.style.backgroundImage = '';
-        return;
-      }
-      if (!file.type.startsWith('image/')) {
-        showToast('Please select a PNG or JPEG image.', true);
-        event.target.value = '';
-        return;
-      }
-      selectedFile = file;
-      updatePreview();
-      setBackgroundBtn.disabled = !selectedUri || !lastStatus.canRunCommands;
-    });
-
-    opacitySlider.addEventListener('input', () => {
-      const val = opacitySlider.value;
-      opacityValue.textContent = val;
-      previewImage.style.opacity = val;
-    });
-
-    toggleBlur.addEventListener('change', () => {
-      previewImage.style.filter = toggleBlur.checked ? 'blur(5px)' : 'none';
-    });
-
-    toggleAnimation.addEventListener('change', () => {
-      previewImage.classList.toggle('animate-scroll', toggleAnimation.checked);
-    });
-
-    setBackgroundBtn.addEventListener('click', () => {
-      if (!selectedUri || !selectedFile) {
-        showToast('Select an image first.', true);
-        return;
-      }
-      const payload = {
-        imageUri: selectedUri,
-        opacity: opacitySlider.value,
-        blur: toggleBlur.checked,
-        animation: toggleAnimation.checked ? 'scroll' : 'none'
-      };
-      const raw = Android.applyBackground(JSON.stringify(payload));
-      handleResult(raw);
-    });
-
-    recheckBtn.addEventListener('click', () => refreshStatus());
-
-    resetBtn.addEventListener('click', () => {
-      if (typeof Android === 'undefined' || !Android.resetBackground) {
-        showToast('Android bridge not available', true);
-        return;
-      }
-      const raw = Android.resetBackground();
-      handleResult(raw);
-    });
-
-    window.onAndroidFileSelected = (uri) => {
-      selectedUri = uri;
-      setBackgroundBtn.disabled = !uri || !lastStatus.canRunCommands;
-      statusDetails.textContent = uri ? 'Image ready: ' + uri : 'Select an image to continue';
+    function run(op) { render(JSON.parse(Android.run(op))); }
+    $('recheckBtn').onclick = () => run('PROBE');
+    $('reloadBtn').onclick = () => run('RELOAD');
+    $('authorizeBtn').onclick = () => Android.authorize();
+    $('recoverBtn').onclick = () => Android.recover();
+    $('copyBtn').onclick = () => Android.copyDiagnostics();
+    $('resetBtn').onclick = () => render(JSON.parse(Android.resetBackground()));
+    $('setBackgroundBtn').onclick = () => render(JSON.parse(Android.applyBackground(JSON.stringify({
+      opacity:$('opacitySlider').value, blur:$('toggleBlur').checked,
+      animation:$('toggleAnimation').checked ? 'scroll' : 'none'
+    }))));
+    window.onAndroidImageReady = data => {
+      selectedFile = true;
+      $('previewImage').style.backgroundImage = 'url("' + data + '")';
+      updatePreview(); refreshStatus();
     };
-
-    function loadSettings() {
-      toggleAnimation.checked = localStorage.getItem("animation") === "true";
-      toggleBlur.checked = localStorage.getItem("blur") === "true";
-      opacitySlider.value = localStorage.getItem("opacity") || 0.8;
-      opacityValue.textContent = opacitySlider.value;
-      previewImage.style.opacity = opacitySlider.value;
-      if (toggleBlur.checked) previewImage.style.filter = 'blur(5px)';
-      if (toggleAnimation.checked) previewImage.classList.add('animate-scroll');
-    }
-
-    function saveSettings() {
-      localStorage.setItem("animation", toggleAnimation.checked);
-      localStorage.setItem("blur", toggleBlur.checked);
-      localStorage.setItem("opacity", opacitySlider.value);
-    }
-
-    loadSettings();
-    [opacitySlider, toggleAnimation, toggleBlur].forEach(e => e.addEventListener('change', saveSettings));
-
-    document.addEventListener('DOMContentLoaded', () => {
-      refreshStatus();
+    const savedOpacity = localStorage.getItem('opacity');
+    if (savedOpacity && /^(0(\.[0-9]{1,3})?|1(\.0{1,3})?)$/.test(savedOpacity)) $('opacitySlider').value = savedOpacity;
+    ['opacitySlider','toggleAnimation','toggleBlur'].forEach(id => $(id).oninput = () => {
+      updatePreview(); localStorage.setItem('opacity', $('opacitySlider').value);
     });
+    updatePreview();
+    refreshStatus(); setInterval(refreshStatus, 750);
   </script>
 </body>
 </html>

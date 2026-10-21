@@ -38,9 +38,7 @@ import org.json.JSONObject;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "TermuxBG";
-    private static final int REQUEST_FLAG = Intent.FLAG_GRANT_READ_URI_PERMISSION
-        | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-        | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION;
+    private static final int REQUEST_FLAG = Intent.FLAG_GRANT_READ_URI_PERMISSION;
 
     private WebView webView;
     @Nullable
@@ -65,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
 
             WebSettings settings = webView.getSettings();
             settings.setJavaScriptEnabled(true);
-            settings.setAllowFileAccess(true);
+            settings.setAllowFileAccess(false);
             settings.setAllowFileAccessFromFileURLs(false);
             settings.setAllowUniversalAccessFromFileURLs(false);
             settings.setAllowContentAccess(false);
@@ -177,12 +175,26 @@ public class MainActivity extends AppCompatActivity {
             Button termuxBtn = findViewById(R.id.btn_open_termux);
             termuxBtn.setOnClickListener(v -> launchPackage("com.termux"));
 
-            Button termuxApiBtn = findViewById(R.id.btn_open_termux_api);
-            termuxApiBtn.setOnClickListener(v -> launchPackage("com.termux.api"));
 
         } catch (Exception fallbackError) {
             Log.e(TAG, "BOOT: Failed to show fallback UI", fallbackError);
         }
+    }
+
+    void copyDiagnostics() {
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboard.setPrimaryClip(ClipData.newPlainText("Diagnostics", buildDiagnostics(null)));
+    }
+
+    void recoverTransport() {
+        new AlertDialog.Builder(this).setTitle("Recover interrupted operation")
+            .setMessage("Completion is unknown. Stop Termux (App info → Force stop), then reopen it before continuing. This prevents overlap with a command still running.")
+            .setPositiveButton("I stopped and reopened Termux", (dialog, which) -> TermuxBridge.get(this).recover())
+            .setNegativeButton("Cancel", null).show();
+    }
+
+    void authorizeTermux() {
+        requestPermissions(new String[]{TermuxBridge.PERMISSION}, 100);
     }
 
     private void showDiagnostics() {
@@ -218,22 +230,19 @@ public class MainActivity extends AppCompatActivity {
 
         // Dependency detection
         sb.append("Termux installed: ").append(isPackageInstalled("com.termux") ? "YES" : "NO").append("\n");
-        sb.append("Termux:API installed: ").append(isPackageInstalled("com.termux.api") ? "YES" : "NO").append("\n\n");
 
         // WebView status
         sb.append("WebView reached: ").append(webViewReached ? "YES" : "NO").append("\n\n");
-        sb.append("Configuration access: UNAVAILABLE (Android app sandbox)\n");
-        sb.append("Command bridge: NOT USED\n");
-        sb.append("Settings reload: NOT RUN\n\n");
+        sb.append("Command diagnostics: ").append(TermuxBridge.get(this).status()).append("\n");
 
         // Error info
         if (e != null) {
             sb.append("Exception: ").append(e.getClass().getName()).append("\n");
-            sb.append("Message: ").append(e.getMessage()).append("\n\n");
+            sb.append("Message: omitted to avoid private paths\n\n");
             
             sb.append("Details: ").append(e.getClass().getSimpleName()).append(" (details omitted)\n\n");
         } else if (lastError != null) {
-            sb.append("Last Error: ").append(lastError).append("\n");
+            sb.append("WebView error recorded (details omitted)\n");
         } else {
             sb.append("No errors recorded.\n");
         }
@@ -263,24 +272,23 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    void showImagePreview(String encoded) {
+        if (!isDestroyed() && webView != null) {
+            webView.evaluateJavascript("window.onAndroidImageReady && window.onAndroidImageReady("
+                    + JSONObject.quote("data:image/jpeg;base64," + encoded) + ");", null);
+        }
+    }
+
     private void handleFileChooserResult(ActivityResult result) {
-        Uri[] uris = null;
         if (result.getResultCode() == RESULT_OK && result.getData() != null) {
             Uri uri = result.getData().getData();
-            if (uri != null) {
-                try {
-                    getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                } catch (SecurityException ignored) {
-                    // Best effort; SAF permission might already be granted.
-                }
-                uris = new Uri[]{uri};
+            if (uri != null && "content".equals(uri.getScheme())) {
                 bridge.setLastImageUri(uri);
-                final String js = "window.onAndroidFileSelected && window.onAndroidFileSelected(" + JSONObject.quote(uri.toString()) + ");";
-                webView.post(() -> webView.evaluateJavascript(js, null));
             }
         }
         if (filePathCallback != null) {
-            filePathCallback.onReceiveValue(uris);
+            // Native decoding supplies the prepared preview; no content URI enters WebView.
+            filePathCallback.onReceiveValue(null);
             filePathCallback = null;
         }
     }

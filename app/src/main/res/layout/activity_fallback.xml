@@ -39,7 +39,7 @@
             android:fontFamily="monospace"
             android:textSize="12sp"
             android:padding="8dp"
-            android:background="#F0F0F0"/>
+            android:background="?android:attr/colorBackground"/>
     </ScrollView>
 
     <Button
@@ -56,10 +56,5 @@
         android:text="Open Termux"
         android:layout_marginBottom="8dp"/>
 
-    <Button
-        android:id="@+id/btn_open_termux_api"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Open Termux:API"/>
 
 </LinearLayout>

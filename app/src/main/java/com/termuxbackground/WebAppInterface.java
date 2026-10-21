@@ -1,71 +1,28 @@
 package com.termuxbackground;
 
-import android.content.Context;
-import android.content.pm.PackageManager;
-import android.os.Build;
+import android.net.Uri;
 import android.webkit.JavascriptInterface;
-
-import org.json.JSONException;
 import org.json.JSONObject;
 
-/** Narrow bridge for the bundled, local UI. The app cannot access Termux's private files. */
 public final class WebAppInterface {
-    private final Context context;
-
-    public WebAppInterface(Context context) {
-        this.context = context.getApplicationContext();
-    }
-
-    @JavascriptInterface
-    public String getStatus() {
-        JSONObject status = new JSONObject();
+    private final MainActivity activity;
+    private final TermuxBridge transport;
+    public WebAppInterface(MainActivity activity) { this.activity = activity; transport = TermuxBridge.get(activity); }
+    void setLastImageUri(Uri uri) { transport.select(uri, activity::showImagePreview); }
+    @JavascriptInterface public String getStatus() { return transport.status(); }
+    @JavascriptInterface public void recover() { activity.runOnUiThread(activity::recoverTransport); }
+    @JavascriptInterface public void authorize() { activity.runOnUiThread(activity::authorizeTermux); }
+    @JavascriptInterface public void copyDiagnostics() { activity.runOnUiThread(activity::copyDiagnostics); }
+    @JavascriptInterface public String run(String operation) { return transport.dispatch(operation, null, false, null); }
+    @JavascriptInterface public String resetBackground() { return transport.dispatch("RESET", null, false, null); }
+    @JavascriptInterface public String applyBackground(String payload) {
         try {
-            boolean termux = installed("com.termux");
-            boolean api = installed("com.termux.api");
-            status.put("termuxInstalled", termux);
-            status.put("termuxApiInstalled", api);
-            status.put("canRunCommands", false);
-            status.put("configurationAccessible", false);
-            status.put("appVersion", BuildConfig.VERSION_NAME);
-            status.put("androidSdk", Build.VERSION.SDK_INT);
-            status.put("lastError", termux
-                    ? "Android isolates Termux's private configuration. Use the Termux CLI for changes."
-                    : "Termux is not installed.");
-        } catch (JSONException ignored) {
-            return "{}";
-        }
-        return status.toString();
-    }
-
-    @JavascriptInterface
-    public String applyBackground(String ignoredPayload) {
-        return unavailable("Use 'termux-background set --image PATH' inside Termux.");
-    }
-
-    @JavascriptInterface
-    public String resetBackground() {
-        return unavailable("Use 'termux-background reset' inside Termux.");
-    }
-
-    private String unavailable(String message) {
-        JSONObject result = new JSONObject();
-        try {
-            result.put("ok", false);
-            result.put("blocked", true);
-            result.put("code", "CONFIG_ACCESS_UNAVAILABLE");
-            result.put("message", message);
-        } catch (JSONException ignored) {
-            return "{\"ok\":false,\"blocked\":true}";
-        }
-        return result.toString();
-    }
-
-    private boolean installed(String packageName) {
-        try {
-            context.getPackageManager().getPackageInfo(packageName, 0);
-            return true;
-        } catch (PackageManager.NameNotFoundException e) {
-            return false;
-        }
+            if (payload == null || payload.length() > 512) throw new IllegalArgumentException();
+            JSONObject values = new JSONObject(payload);
+            if (values.length() != 3)
+                throw new IllegalArgumentException();
+            Operation.validateValues(values.get("opacity"), values.get("blur"), values.get("animation"));
+            return transport.dispatch("APPLY", values.getString("opacity"), values.getBoolean("blur"), values.getString("animation"));
+        } catch (Exception e) { return "{\"code\":\"VALIDATION_FAILED\",\"message\":\"Invalid apply parameters\",\"ready\":false}"; }
     }
 }

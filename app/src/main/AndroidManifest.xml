@@ -1,15 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     <queries>
         <package android:name="com.termux" />
-        <package android:name="com.termux.api" />
     </queries>
 
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="Termux Background"
+        android:label="${appLabel}"
         android:usesCleartextTraffic="false"
         android:theme="@style/AppTheme">
+        <receiver android:name=".CommandResultReceiver" android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

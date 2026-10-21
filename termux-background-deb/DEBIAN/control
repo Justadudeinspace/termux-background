@@ -2,6 +2,6 @@ Package: termux-background
 Version: 1.1.0
 Architecture: all
 Maintainer: Termux Background contributors
-Depends: termux-tools, file
+Depends: termux-tools, file, coreutils
 Description: Configure a custom Termux terminal background
  A small command line tool to manage Termux background settings.
