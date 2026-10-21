@@ -2,6 +2,8 @@
 
 [![Android and Debian builds](https://github.com/Justadudeinspace/termux-background/actions/workflows/build.yml/badge.svg)](https://github.com/Justadudeinspace/termux-background/actions/workflows/build.yml)
 
+**Test/Debug Build Under Actions**
+
 Termux Background provides an Android controller and a Termux CLI. The companion
 uses Termux's supported RUN_COMMAND interface to invoke the CLI; all configuration
 writes stay inside Termux. Apply/Reset wait for command results.
